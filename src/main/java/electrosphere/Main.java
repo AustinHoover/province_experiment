@@ -655,7 +655,6 @@ public class Main {
 
         //build province point list
         List<de.alsclo.voronoi.graph.Point> provinceVoronoiPoints = provinceList.stream().map(province -> new de.alsclo.voronoi.graph.Point(province.getX(),province.getY())).toList();
-        int landCutoff = provinceCenterList.size();
 
         //build voronoi -> original point index map
         Map<de.alsclo.voronoi.graph.Point,Integer> pointIndexMap = new HashMap<de.alsclo.voronoi.graph.Point,Integer>();
@@ -708,7 +707,7 @@ public class Main {
         for(int i = 0; i < provinceVoronoiPoints.size(); i++){
             //IDs start at 1, ergo must add 1 to the incremented value
             Province currentProvince = idProvinceMap.get(i+1);
-            if(i <= landCutoff && !closedSet.contains(currentProvince.getId())){
+            if(currentProvince.getType().contains("land") && !closedSet.contains(currentProvince.getId())){
                 List<Integer> neighbors = currentProvince.getNeighbors();
                 if(neighbors != null){
                     List<Integer> stateMemberList = new LinkedList<Integer>();
