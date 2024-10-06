@@ -19,11 +19,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.imageio.ImageIO;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 
 import de.alsclo.voronoi.Voronoi;
 import de.alsclo.voronoi.graph.Edge;
 import de.alsclo.voronoi.graph.Graph;
 import electrosphere.bmp.BMPWriter;
+import electrosphere.cache.MapDataCache;
 import electrosphere.province.Province;
 import electrosphere.province.TerrainMap;
 import electrosphere.province.TerrainType;
@@ -51,12 +53,28 @@ public class Main {
     static Map<String, Boolean> colorUseMap = new HashMap<String, Boolean>();
     static Map<Integer, Color> provinceIdColorMap = new HashMap<Integer, Color>();
 
+    //the continents that were discovered
+    static List<Integer> continentsDiscovered = new LinkedList<Integer>();
+
     static List<Province> provinceList = new LinkedList<Province>();
+
+    static final String MAP_DATA_CACHE_DEFAULT_PATH = "./mapDataCache.json";
 
     public static void main(String[] args){
         System.out.println("it lives!");
 
         Gson gson = new Gson();
+        MapDataCache mapDataCache = null;
+        if(Files.exists(new File(MAP_DATA_CACHE_DEFAULT_PATH).toPath())){
+            try {
+                System.out.println("Reading map data cache");
+                mapDataCache = gson.fromJson(Files.readString(new File(MAP_DATA_CACHE_DEFAULT_PATH).toPath()), MapDataCache.class);
+            } catch (JsonSyntaxException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
         
         for(int x = 0; x < 3; x++){
             for(int y = 0; y < 3; y++){
@@ -72,234 +90,258 @@ public class Main {
         BufferedImage rawTerrainImg = null; // the mask for ocean
         BufferedImage continentsImage = null; // the mask for each continents
 
-        try {
-            provinceImg = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\province_points.png"));
-            width = provinceImg.getWidth();
-            height = provinceImg.getHeight();
-            horizontalThird = provinceImg.getWidth() / 3;
-            verticalThird = provinceImg.getHeight() / 3;
-            for(int x = 0; x < provinceImg.getWidth(); x++){
-                for(int y = 0; y < provinceImg.getHeight(); y++){
-                    int rgb = provinceImg.getRGB(x, y);
-                    int blue = rgb & 0xff;
-                    int green = (rgb & 0xff00) >> 8;
-                    int red = (rgb & 0xff0000) >> 16;
-                    if(red + blue + green > 400){
-                        Point newPoint = new Point(x,y);
-                        boolean shouldAdd = true;
-                        for(Point extantPoint: provinceCenterList){
-                            if(extantPoint.distance(newPoint) < 3){
-                                shouldAdd = false;
-                                break;
+        if(mapDataCache == null){
+            try {
+                provinceImg = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\province_points.png"));
+                width = provinceImg.getWidth();
+                height = provinceImg.getHeight();
+                horizontalThird = provinceImg.getWidth() / 3;
+                verticalThird = provinceImg.getHeight() / 3;
+                for(int x = 0; x < provinceImg.getWidth(); x++){
+                    for(int y = 0; y < provinceImg.getHeight(); y++){
+                        int rgb = provinceImg.getRGB(x, y);
+                        int blue = rgb & 0xff;
+                        int green = (rgb & 0xff00) >> 8;
+                        int red = (rgb & 0xff0000) >> 16;
+                        if(red + blue + green > 400){
+                            Point newPoint = new Point(x,y);
+                            boolean shouldAdd = true;
+                            for(Point extantPoint: provinceCenterList){
+                                if(extantPoint.distance(newPoint) < 3){
+                                    shouldAdd = false;
+                                    break;
+                                }
                             }
-                        }
-                        if(shouldAdd){
-                            provinceCenterList.add(newPoint);
-                            provinceCenterListMap.get((x/horizontalThird)+""+(y/verticalThird)).add(newPoint);
-                            int[] colors = Utils.getColorFromIndex(provinceList.size(),true);
-                            provinceList.add(new Province(newPoint.x,newPoint.y,provinceList.size()+1,colors[0],colors[1],colors[2],"land",false,"unknown",0));
-                            provinceIdColorMap.put(provinceList.size(),getUnusedColor());
+                            if(shouldAdd){
+                                provinceCenterList.add(newPoint);
+                                provinceCenterListMap.get((x/horizontalThird)+""+(y/verticalThird)).add(newPoint);
+                                int[] colors = Utils.getColorFromIndex(provinceList.size(),true);
+                                provinceList.add(new Province(newPoint.x,newPoint.y,provinceList.size()+1,colors[0],colors[1],colors[2],"land",false,"unknown",0));
+                                provinceIdColorMap.put(provinceList.size(),getUnusedColor());
+                            }
                         }
                     }
                 }
-            }
-            System.out.println("Discovered " + provinceCenterList.size() + " provinces!");
+                System.out.println("Discovered " + provinceCenterList.size() + " provinces!");
 
-            int incrementerForColor = 0;
-            oceanImg = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\ocean_points.png"));
-            for(int x = 0; x < oceanImg.getWidth(); x++){
-                for(int y = 0; y < oceanImg.getHeight(); y++){
-                    int rgb = oceanImg.getRGB(x, y);
-                    int blue = rgb & 0xff;
-                    int green = (rgb & 0xff00) >> 8;
-                    int red = (rgb & 0xff0000) >> 16;
-                    if(red + blue + green > 400){
-                        Point newPoint = new Point(x,y);
-                        boolean shouldAdd = true;
-                        for(Point extantPoint: oceanCenterList){
-                            if(extantPoint.distance(newPoint) < 4){
-                                shouldAdd = false;
-                                break;
+                int incrementerForColor = 0;
+                oceanImg = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\ocean_points.png"));
+                for(int x = 0; x < oceanImg.getWidth(); x++){
+                    for(int y = 0; y < oceanImg.getHeight(); y++){
+                        int rgb = oceanImg.getRGB(x, y);
+                        int blue = rgb & 0xff;
+                        int green = (rgb & 0xff00) >> 8;
+                        int red = (rgb & 0xff0000) >> 16;
+                        if(red + blue + green > 400){
+                            Point newPoint = new Point(x,y);
+                            boolean shouldAdd = true;
+                            for(Point extantPoint: oceanCenterList){
+                                if(extantPoint.distance(newPoint) < 4){
+                                    shouldAdd = false;
+                                    break;
+                                }
                             }
-                        }
-                        if(shouldAdd){
-                            oceanCenterList.add(newPoint);
-                            oceanCenterListMap.get((x/horizontalThird)+""+(y/verticalThird)).add(newPoint);
-                            int[] colors = Utils.getColorFromIndex(incrementerForColor,false);
-                            provinceList.add(new Province(newPoint.x,newPoint.y,provinceList.size()+1,colors[0],colors[1],colors[2],"sea",false,"unknown",0));
-                            provinceIdColorMap.put(provinceList.size(),getUnusedColor());
-                            incrementerForColor++;
+                            if(shouldAdd){
+                                oceanCenterList.add(newPoint);
+                                oceanCenterListMap.get((x/horizontalThird)+""+(y/verticalThird)).add(newPoint);
+                                int[] colors = Utils.getColorFromIndex(incrementerForColor,false);
+                                provinceList.add(new Province(newPoint.x,newPoint.y,provinceList.size()+1,colors[0],colors[1],colors[2],"sea",false,"unknown",0));
+                                provinceIdColorMap.put(provinceList.size(),getUnusedColor());
+                                incrementerForColor++;
+                            }
                         }
                     }
                 }
-            }
-            System.out.println("Discovered " + oceanCenterList.size() + " ocean tiles!");
+                System.out.println("Discovered " + oceanCenterList.size() + " ocean tiles!");
 
-            rawTerrainImg = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\land_vs_ocean.png"));
-            BufferedImage outImage = new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);
-            BufferedImage highContrastOutImage = new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);
-            int totalPixels = rawTerrainImg.getWidth() * rawTerrainImg.getHeight();
-            ThreadPoolExecutor executorService = (ThreadPoolExecutor) Executors.newFixedThreadPool(16);
-            for(int x = 0; x < rawTerrainImg.getWidth(); x++){
-                for(int y = 0; y < rawTerrainImg.getHeight(); y++){
-                    PixelWorkerThread thread = new PixelWorkerThread(
-                        x,
-                        y,
-                        rawTerrainImg,
-                        outImage,
-                        highContrastOutImage,
-                        horizontalThird,
-                        verticalThird,
-                        provinceCenterList,
-                        oceanCenterList,
-                        provinceCenterListMap,
-                        oceanCenterListMap,
-                        provinceIdColorMap
-                    );
-                    executorService.submit(thread);
+                rawTerrainImg = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\land_vs_ocean.png"));
+                BufferedImage outImage = new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);
+                BufferedImage highContrastOutImage = new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);
+                int totalPixels = rawTerrainImg.getWidth() * rawTerrainImg.getHeight();
+                ThreadPoolExecutor executorService = (ThreadPoolExecutor) Executors.newFixedThreadPool(16);
+                for(int x = 0; x < rawTerrainImg.getWidth(); x++){
+                    for(int y = 0; y < rawTerrainImg.getHeight(); y++){
+                        PixelWorkerThread thread = new PixelWorkerThread(
+                            x,
+                            y,
+                            rawTerrainImg,
+                            outImage,
+                            highContrastOutImage,
+                            horizontalThird,
+                            verticalThird,
+                            provinceCenterList,
+                            oceanCenterList,
+                            provinceCenterListMap,
+                            oceanCenterListMap,
+                            provinceIdColorMap
+                        );
+                        executorService.submit(thread);
+                    }
                 }
-            }
-            while(executorService.getQueue().size() > 0){
-                System.out.print("\rProgress: " + ((float)progressIncrementer.get() / (float)totalPixels) + " (queue size: " + executorService.getQueue().size() + ")     ");
+                while(executorService.getQueue().size() > 0){
+                    System.out.print("\rProgress: " + ((float)progressIncrementer.get() / (float)totalPixels) + " (queue size: " + executorService.getQueue().size() + ")     ");
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
                 try {
-                    TimeUnit.MILLISECONDS.sleep(1000);
+                    TimeUnit.MILLISECONDS.sleep(500);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-            }
-            try {
-                TimeUnit.MILLISECONDS.sleep(500);
-            } catch (InterruptedException e) {
+                System.out.println("\rProgress: 1.0                                             ");
+                //
+                //second phase to clean up x-crossings
+                //x-crossings are when four provinces share the same corner. We're gonna fix this by merging the upper two
+                for(int x = 0; x < width; x++){
+                    for(int y = 0; y < height; y++){
+                        //if there can be an X in the first place
+                        if(x < width - 1 && y < height - 1){
+                            int color00 = outImage.getRGB(x, y);
+                            int color10 = outImage.getRGB(x + 1, y);
+                            int color01 = outImage.getRGB(x, y + 1);
+                            int color11 = outImage.getRGB(x + 1, y + 1);
+                            if(color00 != color10 && 
+                            color00 != color01 && 
+                            color00 != color11 && 
+                            color10 != color01 &&
+                            color10 != color11 &&
+                            color01 != color11){
+                                outImage.setRGB(x+1, y, outImage.getRGB(x, y));
+                            }
+                        }
+                    }
+                }
+                //
+                //emit image to file
+                System.out.println("Finished!");
+                executorService.shutdown();
+                Utils.writePngNoCompression(outImage,"C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\provinces.png");
+                ImageIO.write(highContrastOutImage,"png",Files.newOutputStream(new File("C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\provinces_high_contrast.png").toPath()));
+                ProcessBuilder builder = new ProcessBuilder(
+                    "java",
+                    "-jar",
+                    "~/Documents/hoi4ide-imagemanipulator/target/hoi4ide-imagemanipulator-1.0-SNAPSHOT-jar-with-dependencies.jar",
+                    "-i",
+                    "C:/Users/satellite/Documents/Paradox Interactive/Hearts of Iron IV/mod/overhaul1/map/provinces.png",
+                    "-o",
+                    "C:/Users/satellite/Documents/Paradox Interactive/Hearts of Iron IV/mod/overhaul1/map/provinces.bmp"
+                );
+                builder.redirectErrorStream(true);
+                builder.start();
+                System.out.println("Finished writing image");
+
+
+                //
+                //terrain type
+                //
+                //read terrain map
+                TerrainMap terrainMap = gson.fromJson(Files.readString(new File("C:\\Users\\satellite\\p\\overhaul1\\terrainTextureMap.json").toPath()), TerrainMap.class);
+                Map<Integer,TerrainType> terrainTypeMap = new HashMap<Integer,TerrainType>();
+                List<TerrainType> validClamps = new LinkedList<TerrainType>();
+                for(TerrainType type : terrainMap.getMap()){
+                    terrainTypeMap.put(type.getId(), type);
+                    if(type.getSourceColor().size() > 0){
+                        validClamps.add(type);
+                    }
+                }
+                //load terrain images
+                BufferedImage terrainImage = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\terrain.png"));
+                //clamp output image
+                for(int x = 0; x < terrainImage.getWidth(); x++){
+                    for(int y = 0; y < terrainImage.getHeight(); y++){
+                        int rgb = terrainImage.getRGB(x, y);
+                        //get color of source terrain image
+                        int blue = rgb & 0xff;
+                        int green = (rgb & 0xff00) >> 8;
+                        int red = (rgb & 0xff0000) >> 16;
+                        int resistance = 99999;
+                        TerrainType leastResistanceClamp = null;
+                        //find terrain type that is closes to this color
+                        for(TerrainType type : validClamps){
+                            int calculatedResistance = Math.abs(type.getSourceColor().get(0) - red) + Math.abs(type.getSourceColor().get(1) - green) + Math.abs(type.getSourceColor().get(2) - blue);
+                            if(calculatedResistance < resistance){
+                                resistance = calculatedResistance;
+                                leastResistanceClamp = type;
+                            }
+                        }
+                        //set color to closest terrain type
+                        red = leastResistanceClamp.getBaseColor().get(0);
+                        green = leastResistanceClamp.getBaseColor().get(1);
+                        blue = leastResistanceClamp.getBaseColor().get(2);
+                        //set output color
+                        terrainImage.setRGB(x, y, Utils.getIntFromColor(leastResistanceClamp.getId(), leastResistanceClamp.getId(), leastResistanceClamp.getId()));
+                    }
+                }
+                //construct colormap
+                ByteBuffer terrainColorMapBuffer = ByteBuffer.allocate(256 * 4);
+                for(int i = 0; i < 256; i++){
+                    if(terrainTypeMap.containsKey(i)){
+                        TerrainType type = terrainTypeMap.get(i);
+                        terrainColorMapBuffer.put((byte)(int)type.getBaseColor().get(2));
+                        terrainColorMapBuffer.put((byte)(int)type.getBaseColor().get(1));
+                        terrainColorMapBuffer.put((byte)(int)type.getBaseColor().get(0));
+                        terrainColorMapBuffer.put((byte)0);
+                    } else {
+                        terrainColorMapBuffer.put((byte)i);
+                        terrainColorMapBuffer.put((byte)i);
+                        terrainColorMapBuffer.put((byte)i);
+                        terrainColorMapBuffer.put((byte)0);
+                    }
+                }
+                terrainColorMapBuffer.flip();
+                //write
+                BMPWriter.writeBMP(new File("C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\terrain.bmp"), terrainImage, "8bitgrayscale", terrainColorMapBuffer);
+
+                //set continents
+                continentsImage = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\continents.png"));
+                for(Province province : provinceList){
+                    if(province.getType().equals("land")){
+                        int rgb = continentsImage.getRGB(province.getX(), province.getY());
+                        int continent = 0;
+                        boolean newContinent = true;
+                        for(int currentContinent : continentsDiscovered){
+                            if(rgb == currentContinent){
+                                newContinent = false;
+                                continent = continentsDiscovered.indexOf(currentContinent)+1;
+                            }
+                        }
+                        if(newContinent){
+                            continentsDiscovered.add(rgb);
+                            continent = continentsDiscovered.indexOf(rgb)+1;
+                        }
+                        province.setContinent(continent);
+                    }
+                }
+                System.out.println("Continents: " + continentsDiscovered.size());
+            } catch (IOException e) {
                 e.printStackTrace();
             }
-            System.out.println("\rProgress: 1.0                                             ");
-            //
-            //second phase to clean up x-crossings
-            //x-crossings are when four provinces share the same corner. We're gonna fix this by merging the upper two
-            for(int x = 0; x < width; x++){
-                for(int y = 0; y < height; y++){
-                    //if there can be an X in the first place
-                    if(x < width - 1 && y < height - 1){
-                        int color00 = outImage.getRGB(x, y);
-                        int color10 = outImage.getRGB(x + 1, y);
-                        int color01 = outImage.getRGB(x, y + 1);
-                        int color11 = outImage.getRGB(x + 1, y + 1);
-                        if(color00 != color10 && 
-                        color00 != color01 && 
-                        color00 != color11 && 
-                        color10 != color01 &&
-                        color10 != color11 &&
-                        color01 != color11){
-                            outImage.setRGB(x+1, y, outImage.getRGB(x, y));
-                        }
-                    }
-                }
-            }
-            //
-            //emit image to file
-            System.out.println("Finished!");
-            executorService.shutdown();
-            Utils.writePngNoCompression(outImage,"C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\provinces.png");
-            ImageIO.write(highContrastOutImage,"png",Files.newOutputStream(new File("C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\provinces_high_contrast.png").toPath()));
-            ProcessBuilder builder = new ProcessBuilder(
-                "java",
-                "-jar",
-                "~/Documents/hoi4ide-imagemanipulator/target/hoi4ide-imagemanipulator-1.0-SNAPSHOT-jar-with-dependencies.jar",
-                "-i",
-                "C:/Users/satellite/Documents/Paradox Interactive/Hearts of Iron IV/mod/overhaul1/map/provinces.png",
-                "-o",
-                "C:/Users/satellite/Documents/Paradox Interactive/Hearts of Iron IV/mod/overhaul1/map/provinces.bmp"
-            );
-            builder.redirectErrorStream(true);
-            builder.start();
-            System.out.println("Finished writing image");
 
-
-            //
-            //terrain type
-            //
-            //read terrain map
-            TerrainMap terrainMap = gson.fromJson(Files.readString(new File("C:\\Users\\satellite\\p\\overhaul1\\terrainTextureMap.json").toPath()), TerrainMap.class);
-            Map<Integer,TerrainType> terrainTypeMap = new HashMap<Integer,TerrainType>();
-            List<TerrainType> validClamps = new LinkedList<TerrainType>();
-            for(TerrainType type : terrainMap.getMap()){
-                terrainTypeMap.put(type.getId(), type);
-                if(type.getSourceColor().size() > 0){
-                    validClamps.add(type);
-                }
+            //write map data cache now that we have parsed once
+            System.out.println("Writing map data cache");
+            mapDataCache = new MapDataCache();
+            mapDataCache.setProvinceCenterList(provinceCenterList);
+            mapDataCache.setOceanCenterList(oceanCenterList);
+            mapDataCache.setProvinceCenterListMap(provinceCenterListMap);
+            mapDataCache.setOceanCenterListMap(oceanCenterListMap);
+            mapDataCache.setContinentsDiscovered(continentsDiscovered);
+            mapDataCache.setProvinceList(provinceList);
+            try {
+                Files.writeString(new File(MAP_DATA_CACHE_DEFAULT_PATH).toPath(),gson.toJson(mapDataCache));
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-            //load terrain images
-            BufferedImage terrainImage = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\terrain.png"));
-            //clamp output image
-            for(int x = 0; x < terrainImage.getWidth(); x++){
-                for(int y = 0; y < terrainImage.getHeight(); y++){
-                    int rgb = terrainImage.getRGB(x, y);
-                    //get color of source terrain image
-                    int blue = rgb & 0xff;
-                    int green = (rgb & 0xff00) >> 8;
-                    int red = (rgb & 0xff0000) >> 16;
-                    int resistance = 99999;
-                    TerrainType leastResistanceClamp = null;
-                    //find terrain type that is closes to this color
-                    for(TerrainType type : validClamps){
-                        int calculatedResistance = Math.abs(type.getSourceColor().get(0) - red) + Math.abs(type.getSourceColor().get(1) - green) + Math.abs(type.getSourceColor().get(2) - blue);
-                        if(calculatedResistance < resistance){
-                            resistance = calculatedResistance;
-                            leastResistanceClamp = type;
-                        }
-                    }
-                    //set color to closest terrain type
-                    red = leastResistanceClamp.getBaseColor().get(0);
-                    green = leastResistanceClamp.getBaseColor().get(1);
-                    blue = leastResistanceClamp.getBaseColor().get(2);
-                    //set output color
-                    terrainImage.setRGB(x, y, Utils.getIntFromColor(leastResistanceClamp.getId(), leastResistanceClamp.getId(), leastResistanceClamp.getId()));
-                }
-            }
-            //construct colormap
-            ByteBuffer terrainColorMapBuffer = ByteBuffer.allocate(256 * 4);
-            for(int i = 0; i < 256; i++){
-                if(terrainTypeMap.containsKey(i)){
-                    TerrainType type = terrainTypeMap.get(i);
-                    terrainColorMapBuffer.put((byte)(int)type.getBaseColor().get(2));
-                    terrainColorMapBuffer.put((byte)(int)type.getBaseColor().get(1));
-                    terrainColorMapBuffer.put((byte)(int)type.getBaseColor().get(0));
-                    terrainColorMapBuffer.put((byte)0);
-                } else {
-                    terrainColorMapBuffer.put((byte)i);
-                    terrainColorMapBuffer.put((byte)i);
-                    terrainColorMapBuffer.put((byte)i);
-                    terrainColorMapBuffer.put((byte)0);
-                }
-            }
-            terrainColorMapBuffer.flip();
-            //write
-            BMPWriter.writeBMP(new File("C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\terrain.bmp"), terrainImage, "8bitgrayscale", terrainColorMapBuffer);
-
-            //set continents
-            continentsImage = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\continents.png"));
-            List<Integer> continentsDiscovered = new LinkedList<Integer>();
-            for(Province province : provinceList){
-                if(province.getType().equals("land")){
-                    int rgb = continentsImage.getRGB(province.getX(), province.getY());
-                    int continent = 0;
-                    boolean newContinent = true;
-                    for(int currentContinent : continentsDiscovered){
-                        if(rgb == currentContinent){
-                            newContinent = false;
-                            continent = continentsDiscovered.indexOf(currentContinent)+1;
-                        }
-                    }
-                    if(newContinent){
-                        continentsDiscovered.add(rgb);
-                        continent = continentsDiscovered.indexOf(rgb)+1;
-                    }
-                    province.setContinent(continent);
-                }
-            }
-            System.out.println("Continents: " + continentsDiscovered.size());
-        } catch (IOException e) {
-            e.printStackTrace();
+        } else {
+            System.out.println("Loading map data cache");
+            provinceCenterList = mapDataCache.getProvinceCenterList();
+            oceanCenterList = mapDataCache.getOceanCenterList();
+            provinceCenterListMap = mapDataCache.getProvinceCenterListMap();
+            oceanCenterListMap = mapDataCache.getOceanCenterListMap();
+            continentsDiscovered = mapDataCache.getContinentsDiscovered();
+            provinceList = mapDataCache.getProvinceList();
         }
 
         //output province csv
