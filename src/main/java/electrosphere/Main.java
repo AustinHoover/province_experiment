@@ -5,7 +5,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -30,11 +29,12 @@ import electrosphere.config.Config;
 import electrosphere.province.Province;
 import electrosphere.province.TerrainMap;
 import electrosphere.province.TerrainType;
+import electrosphere.state.Building;
 import electrosphere.state.State;
 import electrosphere.threads.PixelWorkerThread;
+import electrosphere.util.Point;
 
 import java.awt.Color;
-import java.awt.Point;
 
 public class Main {
 
@@ -196,7 +196,7 @@ public class Main {
                                     provinceCenterList.add(newPoint);
                                     provinceCenterListMap.get((x/horizontalThird)+""+(y/verticalThird)).add(newPoint);
                                     int[] colors = Utils.getColorFromIndex(provinceList.size(),true);
-                                    provinceList.add(new Province(newPoint.x,newPoint.y,provinceList.size()+1,colors[0],colors[1],colors[2],"land",false,"unknown",0));
+                                    provinceList.add(new Province((int)newPoint.getX(),(int)newPoint.getY(),provinceList.size()+1,colors[0],colors[1],colors[2],"land",false,"unknown",0));
                                     provinceIdColorMap.put(provinceList.size(),getUnusedColor().getRGB());
                                 }
                             }
@@ -237,7 +237,7 @@ public class Main {
                                     oceanCenterList.add(newPoint);
                                     oceanCenterListMap.get((x/horizontalThird)+""+(y/verticalThird)).add(newPoint);
                                     int[] colors = Utils.getColorFromIndex(incrementerForColor,false);
-                                    provinceList.add(new Province(newPoint.x,newPoint.y,provinceList.size()+1,colors[0],colors[1],colors[2],"sea",false,"unknown",0));
+                                    provinceList.add(new Province((int)newPoint.getX(),(int)newPoint.getY(),provinceList.size()+1,colors[0],colors[1],colors[2],"sea",false,"unknown",0));
                                     provinceIdColorMap.put(provinceList.size(),getUnusedColor().getRGB());
                                     incrementerForColor++;
                                 }
@@ -484,44 +484,6 @@ public class Main {
             provinceIdColorMap = mapDataCache.getProvinceIdColorMap();
         }
 
-        //error check province list
-        if(
-            provinceList.size() != provinceCenterList.size() + oceanCenterList.size()
-        ){
-            throw new Error("Province list does not include correct centers! " + provinceList.size() + " " + provinceCenterList.size() + " " + oceanCenterList.size());
-        }
-        if(provinceList.size() != provinceIdColorMap.values().size()){
-            throw new Error("Province list does not contain correct colors! " + provinceList.size() + " " + provinceIdColorMap.values().size());
-        }
-        //output province csv
-        StringBuilder provinceCSVBuilder = new StringBuilder("0;0;0;0;land;false;unknown;0\r\n");
-        for(Province province : provinceList){
-            provinceCSVBuilder.append(province.getId());
-            provinceCSVBuilder.append(";");
-            provinceCSVBuilder.append(province.getRed());
-            provinceCSVBuilder.append(";");
-            provinceCSVBuilder.append(province.getGreen());
-            provinceCSVBuilder.append(";");
-            provinceCSVBuilder.append(province.getBlue());
-            provinceCSVBuilder.append(";");
-            provinceCSVBuilder.append(province.getType());
-            provinceCSVBuilder.append(";");
-            provinceCSVBuilder.append(province.getCoastalStatus());
-            provinceCSVBuilder.append(";");
-            provinceCSVBuilder.append(province.getTerrain());
-            provinceCSVBuilder.append(";");
-            provinceCSVBuilder.append(province.getContinent());
-            provinceCSVBuilder.append("\r\n");
-        }
-        String output = provinceCSVBuilder.toString();//.substring(0, provinceCSVBuilder.length() - 2);
-        try {
-            String provinceDefinitionPath = config.getModDirectory() + "/map/definition.csv";
-            System.out.println("Writing province definition " + provinceDefinitionPath);
-            Files.write(new File(provinceDefinitionPath).toPath(), output.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
 
 
         //
@@ -692,168 +654,119 @@ public class Main {
         //
 
         //build province point list
-        List<de.alsclo.voronoi.graph.Point> provinceVoronoiPoints = provinceCenterList.stream().map(point -> new de.alsclo.voronoi.graph.Point(point.x,point.y)).toList();
-        int landCutoff = provinceVoronoiPoints.size();
-        List<de.alsclo.voronoi.graph.Point> oceanVoronoiPoints = oceanCenterList.stream().map(point -> new de.alsclo.voronoi.graph.Point(point.x,point.y)).toList();
-        Collection<de.alsclo.voronoi.graph.Point> voronoiPoints = new LinkedList<de.alsclo.voronoi.graph.Point>();
-        voronoiPoints.addAll(provinceVoronoiPoints);
-        voronoiPoints.addAll(oceanVoronoiPoints);
+        List<de.alsclo.voronoi.graph.Point> provinceVoronoiPoints = provinceList.stream().map(province -> new de.alsclo.voronoi.graph.Point(province.getX(),province.getY())).toList();
+        int landCutoff = provinceCenterList.size();
 
         //build voronoi -> original point index map
         Map<de.alsclo.voronoi.graph.Point,Integer> pointIndexMap = new HashMap<de.alsclo.voronoi.graph.Point,Integer>();
         int voronoiIndex = 0;
-        for(de.alsclo.voronoi.graph.Point voronoiPoint : voronoiPoints){
+        for(de.alsclo.voronoi.graph.Point voronoiPoint : provinceVoronoiPoints){
             pointIndexMap.put(voronoiPoint,voronoiIndex);
             voronoiIndex++;
         }
 
         //fortune's algorithm
-        Voronoi voronoi = new Voronoi(voronoiPoints);
+        Voronoi voronoi = new Voronoi(provinceVoronoiPoints);
         Graph graph = voronoi.getGraph();
 
         //get adjacencies in more convenient datastructures
         int edgeCount = 0;
-        Map<Integer,List<Integer>> adjacencyMap = new HashMap<Integer,List<Integer>>();
         List<Edge> edgeList = graph.edgeStream().toList();
         for(Edge edge : edgeList){
             edgeCount++;
             int site1Index = pointIndexMap.get(edge.getSite1());
             int site2Index = pointIndexMap.get(edge.getSite2());
-
-            if(adjacencyMap.containsKey(site1Index)){
-                adjacencyMap.get(site1Index).add(site2Index);
-            } else {
-                List<Integer> adjacencies = new LinkedList<Integer>();
-                adjacencies.add(site2Index);
-                adjacencyMap.put(site1Index,adjacencies);
-            }
-
-            if(adjacencyMap.containsKey(site2Index)){
-                adjacencyMap.get(site2Index).add(site1Index);
-            } else {
-                List<Integer> adjacencies = new LinkedList<Integer>();
-                adjacencies.add(site1Index);
-                adjacencyMap.put(site2Index,adjacencies);
-            }
+            provinceList.get(site1Index).addNeighbor(provinceList.get(site2Index).getId());
+            provinceList.get(site2Index).addNeighbor(provinceList.get(site1Index).getId());
         }
         System.out.println("Edge count: " + edgeCount);
+
+        //construct province id->province map
+        Map<Integer,Province> idProvinceMap = new HashMap<Integer,Province>();
+        for(Province province : provinceList){
+            idProvinceMap.put(province.getId(),province);
+        }
+
+        //evaluate province data based on neighbors
+        for(Province province : provinceList){
+            //evaluate coastal status before emitting
+            if(province.getType().contains("land")){
+                for(int neighborId : province.getNeighbors()){
+                    Province neighbor = idProvinceMap.get(neighborId);
+                    if(!neighbor.getType().contains("land")){
+                        province.setCoastalStatus(true);
+                    }
+                }
+            }
+        }
 
         List<State> states = new LinkedList<State>();
         //calculate states based on adjacencies
         //closed set of indices that have already been added to a state
         List<Integer> closedSet = new LinkedList<Integer>();
         //first try to construct ideal states of all neighbors where state is 6+ provinces
-        for(int i = 0; i < voronoiPoints.size(); i++){
-            if(i <= landCutoff && !closedSet.contains(i)){
-                List<Integer> adjacencies = adjacencyMap.get(i);
-                if(adjacencies != null){
-                    List<Integer> provinceList = new LinkedList<Integer>();
-                    provinceList.add(i);
-                    closedSet.add(i);
+        for(int i = 0; i < provinceVoronoiPoints.size(); i++){
+            //IDs start at 1, ergo must add 1 to the incremented value
+            Province currentProvince = idProvinceMap.get(i+1);
+            if(i <= landCutoff && !closedSet.contains(currentProvince.getId())){
+                List<Integer> neighbors = currentProvince.getNeighbors();
+                if(neighbors != null){
+                    List<Integer> stateMemberList = new LinkedList<Integer>();
+                    stateMemberList.add(currentProvince.getId());
+                    closedSet.add(currentProvince.getId());
 
                     //add all neighbors of the province that was just added
-                    for(int adjacentIndex : adjacencies){
+                    for(int neighborId : neighbors){
+                        Province currentNeighbor = idProvinceMap.get(neighborId);
                         if(
-                            !closedSet.contains(adjacentIndex) &&
-                            adjacentIndex <= landCutoff
+                            !closedSet.contains(currentNeighbor.getId()) &&
+                            currentNeighbor.getType().contains("land")
                         ){
-                            if(!closedSet.contains(adjacentIndex + 1) && provinceList.contains(adjacentIndex + 1)){
+                            if(!closedSet.contains(currentNeighbor.getId()) && stateMemberList.contains(currentNeighbor.getId())){
                                 throw new Error("Closed set does not contain index that was already assigned!");
                             }
-                            provinceList.add(adjacentIndex);
-                            closedSet.add(adjacentIndex);
+                            stateMemberList.add(currentNeighbor.getId());
+                            closedSet.add(currentNeighbor.getId());
                         }
                     }
 
-                    if(provinceList.size() < TARGET_PROVINCES_PER_STATE){
+                    if(stateMemberList.size() < TARGET_PROVINCES_PER_STATE){
                         //have not added enough provinces yet, try adding more
-                        for(int adjacentIndex : adjacencies){
-                            List<Integer> extendedNeighbors = adjacencyMap.get(adjacentIndex);
-                            if(extendedNeighbors != null && adjacentIndex <= landCutoff){
+                        for(int neighborId : neighbors){
+                            Province currentNeighbor = idProvinceMap.get(neighborId);
+                            if(stateMemberList.size() >= TARGET_PROVINCES_PER_STATE){
+                                break;
+                            }
+                            List<Integer> extendedNeighbors = idProvinceMap.get(currentNeighbor.getId()).getNeighbors();
+                            if(
+                                extendedNeighbors != null &&
+                                currentNeighbor.getType().contains("land")
+                            ){
                                 for(int neighborsNeighbor : extendedNeighbors){
+                                    Province neighborsNeighborObj = idProvinceMap.get(neighborsNeighbor);
                                     if(
-                                        !closedSet.contains(neighborsNeighbor) &&
-                                        !provinceList.contains(neighborsNeighbor) &&
-                                        neighborsNeighbor <= landCutoff &&
-                                        provinceList.size() < 10
+                                        !closedSet.contains(neighborsNeighborObj.getId()) &&
+                                        !stateMemberList.contains(neighborsNeighborObj.getId()) &&
+                                        neighborsNeighborObj.getType().contains("land") &&
+                                        stateMemberList.size() < 10
                                     ){
-                                        if(!closedSet.contains(neighborsNeighbor + 1) && provinceList.contains(neighborsNeighbor + 1)){
+                                        if(!closedSet.contains(neighborsNeighborObj.getId()) && stateMemberList.contains(neighborsNeighborObj.getId())){
                                             throw new Error("Closed set does not contain index that was already assigned!");
                                         }
-                                        provinceList.add(neighborsNeighbor);
-                                        closedSet.add(neighborsNeighbor);
+                                        stateMemberList.add(neighborsNeighborObj.getId());
+                                        closedSet.add(neighborsNeighborObj.getId());
                                         // System.out.println("Bonus province");
                                     }
                                 }
                             }
                         }
                     }
-                    states.add(new State(provinceList, true));
+                    states.add(new State(states.size() + 1,stateMemberList, true));
                 }
-                //  else {
-                //     //it's ocean
-                //     int numOceanAdjacent = 0;
-                //     if(adjacencies != null){
-                //         List<Integer> provinceList = new LinkedList<Integer>();
-                //         provinceList.add(i + 1);
-                //         for(int adjacentIndex : adjacencies){
-                //             if(!closedSet.contains(adjacentIndex) && adjacentIndex >= landCutoff){
-                //                 numOceanAdjacent++;
-                //                 provinceList.add(adjacentIndex + 1);
-                //             }
-                //         }
-                //         if(numOceanAdjacent > 5){
-                //             for(int toClose : provinceList){
-                //                 closedSet.add(toClose - 1);
-                //             }
-                //             states.add(new State(provinceList, false));
-                //         }
-                //     }
-                // }
-            }
-        }
-        System.out.println("Number of states ideal: " + states.size());
-        //then add remaining combinations of provinces as states
-        for(int i = 0; i < voronoiPoints.size(); i++){
-            if(!closedSet.contains(i)){
-                List<Integer> adjacencies = adjacencyMap.get(i);
-                if(i < landCutoff){
-                    //it's land
-                    if(adjacencies != null){
-                        List<Integer> provinceList = new LinkedList<Integer>();
-                        provinceList.add(i + 1);
-                        for(int adjacentIndex : adjacencies){
-                            if(!closedSet.contains(adjacentIndex) && adjacentIndex < landCutoff){
-                                provinceList.add(adjacentIndex + 1);
-                            }
-                        }
-                        for(int toClose : provinceList){
-                            closedSet.add(toClose - 1);
-                        }
-                        states.add(new State(provinceList, true));
-                    }
-                }
-                //  else {
-                //     //it's ocean
-                //     if(adjacencies != null){
-                //         List<Integer> provinceList = new LinkedList<Integer>();
-                //         provinceList.add(i + 1);
-                //         for(int adjacentIndex : adjacencies){
-                //             if(!closedSet.contains(adjacentIndex) && adjacentIndex >= landCutoff){
-                //                 provinceList.add(adjacentIndex + 1);
-                //             }
-                //         }
-                //         for(int toClose : provinceList){
-                //             closedSet.add(toClose - 1);
-                //         }
-                //         states.add(new State(provinceList, false));
-                //     }
-                // }
             }
         }
         System.out.println("Number of states final: " + states.size());
         //emit states as state files
-        int stateId = 1;
         int defaultManpower = 500000;
         String defaultCategory = "town";
         //optional stuff
@@ -873,8 +786,8 @@ public class Main {
                 }
                 StringBuilder builder = new StringBuilder("");
                 builder.append("state = {\n");
-                builder.append("    id=" + stateId + "\n");
-                builder.append("    name=\"STATE_" + stateId + "\"\n");
+                builder.append("    id=" + state.getId() + "\n");
+                builder.append("    name=\"STATE_" + state.getId() + "\"\n");
                 builder.append("    manpower=" + defaultManpower + "\n");
                 builder.append("    state_category=" + defaultCategory + "\n");
                 builder.append("    provinces={\n");
@@ -885,14 +798,73 @@ public class Main {
                 builder.append("}");
                 //write to file
                 try {
-                    Files.write(new File(config.getModDirectory() + "/history/states/STATE_" + stateId + ".txt").toPath(), builder.toString().getBytes());
+                    Files.write(new File(config.getModDirectory() + "/history/states/STATE_" + state.getId() + ".txt").toPath(), builder.toString().getBytes());
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-                //increment
-                stateId++;
             }
         }
+
+
+
+
+
+
+
+
+
+        //
+        //Emit province definitions
+        //
+        //error check province list
+        if(
+            provinceList.size() != provinceCenterList.size() + oceanCenterList.size()
+        ){
+            throw new Error("Province list does not include correct centers! " + provinceList.size() + " " + provinceCenterList.size() + " " + oceanCenterList.size());
+        }
+        if(provinceList.size() != provinceIdColorMap.values().size()){
+            throw new Error("Province list does not contain correct colors! " + provinceList.size() + " " + provinceIdColorMap.values().size());
+        }
+        //output province csv
+        StringBuilder provinceCSVBuilder = new StringBuilder("0;0;0;0;land;false;unknown;0\r\n");
+        for(Province province : provinceList){
+            provinceCSVBuilder.append(province.getId());
+            provinceCSVBuilder.append(";");
+            provinceCSVBuilder.append(province.getRed());
+            provinceCSVBuilder.append(";");
+            provinceCSVBuilder.append(province.getGreen());
+            provinceCSVBuilder.append(";");
+            provinceCSVBuilder.append(province.getBlue());
+            provinceCSVBuilder.append(";");
+            provinceCSVBuilder.append(province.getType());
+            provinceCSVBuilder.append(";");
+            provinceCSVBuilder.append(province.getCoastalStatus());
+            provinceCSVBuilder.append(";");
+            provinceCSVBuilder.append(province.getTerrain());
+            provinceCSVBuilder.append(";");
+            provinceCSVBuilder.append(province.getContinent());
+            provinceCSVBuilder.append("\r\n");
+        }
+        String output = provinceCSVBuilder.toString();
+        try {
+            String provinceDefinitionPath = config.getModDirectory() + "/map/definition.csv";
+            System.out.println("Writing province definition " + provinceDefinitionPath);
+            Files.write(new File(provinceDefinitionPath).toPath(), output.getBytes());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+
+
+
+
+
+
+
+
+
+
 
         //
         //generate strategic regions
@@ -934,12 +906,56 @@ public class Main {
             }
         }
 
+        //
+        //generate buildings for each state
+        //
+        for(State state : states){
+            state.generateBuildings(provinceList, idProvinceMap);
+        }
+
+        //
+        //emit buildings
+        //
+        {
+
+            StringBuilder buildingCSVBuilder = new StringBuilder("");
+            for(State state : states){
+                for(Building building : state.getBuildings()){
+                    int buildingHeight = 10;
+                    double buildingRotation = 0.0;
+                    int adjacentSeaProvince = 0;
+                    buildingCSVBuilder.append(state.getId());
+                    buildingCSVBuilder.append(";");
+                    buildingCSVBuilder.append(building.getType());
+                    buildingCSVBuilder.append(";");
+                    buildingCSVBuilder.append(building.getLocation().getX());
+                    buildingCSVBuilder.append(";");
+                    buildingCSVBuilder.append(building.getLocation().getY());
+                    buildingCSVBuilder.append(";");
+                    buildingCSVBuilder.append(buildingHeight);
+                    buildingCSVBuilder.append(";");
+                    buildingCSVBuilder.append(buildingRotation);
+                    buildingCSVBuilder.append(";");
+                    buildingCSVBuilder.append(adjacentSeaProvince);
+                    buildingCSVBuilder.append("\r\n");
+                }
+            }
+            output = buildingCSVBuilder.toString();
+            try {
+                String buildingsFilePath = config.getModDirectory() + "/map/buildings.txt";
+                System.out.println("Writing buildings file " + buildingsFilePath);
+                Files.writeString(new File(buildingsFilePath).toPath(),output);
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }
+
         //add all building files as skeletons
         try {
             Files.writeString(new File(config.getModDirectory() + "/map/adjacencies.csv").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/adjacency_rules.txt").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/airports.txt").toPath(),"");
-            Files.writeString(new File(config.getModDirectory() + "/map/buildings.txt").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/railways.txt").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/rocketsites.txt").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/supply_nodes.txt").toPath(),"");

@@ -4,8 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import electrosphere.province.Province;
-
-import java.awt.Point;
+import electrosphere.util.Point;
 
 /**
  * Caches data about the map between runs so the heavy work doesn't have to be evaluated every run.

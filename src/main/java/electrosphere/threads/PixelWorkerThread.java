@@ -7,8 +7,8 @@ import java.util.concurrent.Semaphore;
 
 import electrosphere.Main;
 import electrosphere.Utils;
+import electrosphere.util.Point;
 
-import java.awt.Point;
 import java.awt.Color;
 
 /**
@@ -108,8 +108,8 @@ public class PixelWorkerThread implements Runnable {
         int index = 0;
         Point bestPoint = null;
         double closest = 9999999.99;
-        int offsetX = toTest.x / horizontalThird;
-        int offsetY = toTest.y / verticalThird;
+        int offsetX = (int)toTest.getX() / horizontalThird;
+        int offsetY = (int)toTest.getY() / verticalThird;
         for(int x = -1; x < 2; x++){
             for(int y = -1; y < 2; y++){
                 if(offsetX + x > -1 && offsetX + x < 3 && offsetY + y > -1 && offsetY + y < 3){
