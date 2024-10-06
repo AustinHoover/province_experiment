@@ -33,6 +33,7 @@ import electrosphere.state.Building;
 import electrosphere.state.State;
 import electrosphere.threads.PixelWorkerThread;
 import electrosphere.util.Point;
+import electrosphere.util.Utils;
 
 import java.awt.Color;
 

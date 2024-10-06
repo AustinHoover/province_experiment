@@ -6,8 +6,8 @@ import java.util.Map;
 import java.util.concurrent.Semaphore;
 
 import electrosphere.Main;
-import electrosphere.Utils;
 import electrosphere.util.Point;
+import electrosphere.util.Utils;
 
 import java.awt.Color;
 

@@ -1,4 +1,4 @@
-package electrosphere;
+package electrosphere.util;
 
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
