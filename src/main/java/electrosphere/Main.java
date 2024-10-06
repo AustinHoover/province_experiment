@@ -26,6 +26,7 @@ import de.alsclo.voronoi.graph.Edge;
 import de.alsclo.voronoi.graph.Graph;
 import electrosphere.bmp.BMPWriter;
 import electrosphere.cache.MapDataCache;
+import electrosphere.config.Config;
 import electrosphere.province.Province;
 import electrosphere.province.TerrainMap;
 import electrosphere.province.TerrainType;
@@ -58,12 +59,75 @@ public class Main {
 
     static List<Province> provinceList = new LinkedList<Province>();
 
+    /**
+     * Default path for the map data cache file
+     */
     static final String MAP_DATA_CACHE_DEFAULT_PATH = "./mapDataCache.json";
+
+    /**
+     * The config file path
+     */
+    static final String CONFIG_FILEPATH = "./provinceExperiment.json";
 
     public static void main(String[] args){
         System.out.println("it lives!");
 
         Gson gson = new Gson();
+
+        //
+        //read config
+        //
+        Config config = null;
+        File configFile = new File(CONFIG_FILEPATH);
+        if(Files.exists(new File(CONFIG_FILEPATH).toPath())){
+            try {
+                System.out.println("Reading config");
+                config = gson.fromJson(Files.readString(configFile.toPath()), Config.class);
+                config.fillInMissingValues();
+            } catch (JsonSyntaxException e) {
+                System.err.println("Failed to read config! " + configFile);
+                e.printStackTrace();
+                System.exit(1);
+            } catch (IOException e) {
+                System.err.println("Failed to read config! " + configFile);
+                e.printStackTrace();
+                System.exit(1);
+            }
+        } else {
+            System.err.println("Failed to find config, writing an example one to " + configFile);
+            config = new Config();
+            config.fillInMissingValues();
+            try {
+                Files.writeString(configFile.toPath(),gson.toJson(config));
+            } catch (IOException e) {
+                System.err.println("Failed to write example config to " + configFile);
+                e.printStackTrace();
+                System.exit(1);
+            }
+            System.exit(1);
+        }
+        
+        //error check the config
+        if(!Files.exists(new File(config.getSourceDirectory()).toPath())){
+            throw new Error("Sorurce folder does not exist! " + config.getSourceDirectory());
+        }
+        if(!Files.exists(new File(config.getModDirectory()).toPath())){
+            throw new Error("Mod folder does not exist! " + config.getModDirectory());
+        }
+
+        //make sure the mod folder has all required subfolders
+        {
+            String targetSubfolder = config.getModDirectory() + "/map/terrain";
+            try {
+                Files.createDirectories(new File(targetSubfolder).toPath());
+            } catch (IOException e) {
+                System.err.println("Failed to create required directories in mod folder " + targetSubfolder);
+                e.printStackTrace();
+                System.exit(1);
+            }
+        }
+
+        //read map data cache
         MapDataCache mapDataCache = null;
         if(Files.exists(new File(MAP_DATA_CACHE_DEFAULT_PATH).toPath())){
             try {
@@ -92,7 +156,9 @@ public class Main {
 
         if(mapDataCache == null){
             try {
-                provinceImg = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\province_points.png"));
+                String provincesImageFilepath = config.getSourceDirectory() + "/" + config.getProvincePointsFilename();
+                System.out.println("Reading provinces points image file " + provincesImageFilepath);
+                provinceImg = ImageIO.read(new File(provincesImageFilepath));
                 width = provinceImg.getWidth();
                 height = provinceImg.getHeight();
                 horizontalThird = provinceImg.getWidth() / 3;
@@ -125,7 +191,9 @@ public class Main {
                 System.out.println("Discovered " + provinceCenterList.size() + " provinces!");
 
                 int incrementerForColor = 0;
-                oceanImg = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\ocean_points.png"));
+                String oceanPointsPath = config.getSourceDirectory() + "/" + config.getOceanPointsFilename();
+                System.out.println("Reading ocean points file " + oceanPointsPath);
+                oceanImg = ImageIO.read(new File(oceanPointsPath));
                 for(int x = 0; x < oceanImg.getWidth(); x++){
                     for(int y = 0; y < oceanImg.getHeight(); y++){
                         int rgb = oceanImg.getRGB(x, y);
@@ -154,7 +222,9 @@ public class Main {
                 }
                 System.out.println("Discovered " + oceanCenterList.size() + " ocean tiles!");
 
-                rawTerrainImg = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\land_vs_ocean.png"));
+                String landOceanFilepath = config.getSourceDirectory() + "/" + config.getLandOceanFilename();
+                System.out.println("Reading land ocean file " + landOceanFilepath);
+                rawTerrainImg = ImageIO.read(new File(landOceanFilepath));
                 BufferedImage outImage = new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);
                 BufferedImage highContrastOutImage = new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);
                 int totalPixels = rawTerrainImg.getWidth() * rawTerrainImg.getHeight();
@@ -218,19 +288,28 @@ public class Main {
                 //emit image to file
                 System.out.println("Finished!");
                 executorService.shutdown();
-                Utils.writePngNoCompression(outImage,"C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\provinces.png");
-                ImageIO.write(highContrastOutImage,"png",Files.newOutputStream(new File("C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\provinces_high_contrast.png").toPath()));
+
+                String provincesOutputPath = config.getModDirectory() + "/" + config.getOutProvincesFilename();
+                String highContrastOutputPath = config.getModDirectory() + "/" + config.getOutProvincesHighContrastFilename();
+                String finalProvincesPath = config.getModDirectory() + "/map/provinces.bmp";
+
+                System.out.println("Writing " + provincesOutputPath);
+                Utils.writePngNoCompression(outImage,provincesOutputPath);
+
+                System.out.println("Writing " + highContrastOutputPath);
+                ImageIO.write(highContrastOutImage,"png",Files.newOutputStream(new File(highContrastOutputPath).toPath()));
+
+                System.out.println("Converting " + provincesOutputPath + " -> " + finalProvincesPath);
                 ProcessBuilder builder = new ProcessBuilder(
                     "java",
                     "-jar",
-                    "~/Documents/hoi4ide-imagemanipulator/target/hoi4ide-imagemanipulator-1.0-SNAPSHOT-jar-with-dependencies.jar",
+                    "\"" + config.getImageConverterJarPath() + "\"",
                     "-i",
-                    "C:/Users/satellite/Documents/Paradox Interactive/Hearts of Iron IV/mod/overhaul1/map/provinces.png",
+                    "\"" + provincesOutputPath + "\"",
                     "-o",
-                    "C:/Users/satellite/Documents/Paradox Interactive/Hearts of Iron IV/mod/overhaul1/map/provinces.bmp"
+                    "\"" + finalProvincesPath + "\""
                 );
-                builder.redirectErrorStream(true);
-                builder.start();
+                builder.inheritIO().start();
                 System.out.println("Finished writing image");
 
 
@@ -238,7 +317,9 @@ public class Main {
                 //terrain type
                 //
                 //read terrain map
-                TerrainMap terrainMap = gson.fromJson(Files.readString(new File("C:\\Users\\satellite\\p\\overhaul1\\terrainTextureMap.json").toPath()), TerrainMap.class);
+                String textureMapPath = config.getSourceDirectory() + "/" + config.getTerrainTextureMapFilename();
+                System.out.println("Reading " + textureMapPath);
+                TerrainMap terrainMap = gson.fromJson(Files.readString(new File(textureMapPath).toPath()), TerrainMap.class);
                 Map<Integer,TerrainType> terrainTypeMap = new HashMap<Integer,TerrainType>();
                 List<TerrainType> validClamps = new LinkedList<TerrainType>();
                 for(TerrainType type : terrainMap.getMap()){
@@ -248,7 +329,9 @@ public class Main {
                     }
                 }
                 //load terrain images
-                BufferedImage terrainImage = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\terrain.png"));
+                String terrainTextureImagePath = config.getSourceDirectory() + "/" + config.getTerrainTypeFilename();
+                System.out.println("Reading terrain texture image " + terrainTextureImagePath);
+                BufferedImage terrainImage = ImageIO.read(new File(terrainTextureImagePath));
                 //clamp output image
                 for(int x = 0; x < terrainImage.getWidth(); x++){
                     for(int y = 0; y < terrainImage.getHeight(); y++){
@@ -293,10 +376,14 @@ public class Main {
                 }
                 terrainColorMapBuffer.flip();
                 //write
-                BMPWriter.writeBMP(new File("C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\terrain.bmp"), terrainImage, "8bitgrayscale", terrainColorMapBuffer);
+                String terrainTextureFinalPath = config.getModDirectory() + "/map/terrain.bmp";
+                System.out.println("Writing terrain texture image " + terrainTextureFinalPath);
+                BMPWriter.writeBMP(new File(terrainTextureFinalPath), terrainImage, "8bitgrayscale", terrainColorMapBuffer);
 
                 //set continents
-                continentsImage = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\continents.png"));
+                String continentsImagePath = config.getSourceDirectory() + "/" + config.getContinentsFilename();
+                System.out.println("Reading continents image " + continentsImagePath);
+                continentsImage = ImageIO.read(new File(continentsImagePath));
                 for(Province province : provinceList){
                     if(province.getType().equals("land")){
                         int rgb = continentsImage.getRGB(province.getX(), province.getY());
@@ -330,6 +417,7 @@ public class Main {
             mapDataCache.setContinentsDiscovered(continentsDiscovered);
             mapDataCache.setProvinceList(provinceList);
             try {
+                System.out.println("Writing map data cache " + MAP_DATA_CACHE_DEFAULT_PATH);
                 Files.writeString(new File(MAP_DATA_CACHE_DEFAULT_PATH).toPath(),gson.toJson(mapDataCache));
             } catch (IOException e) {
                 e.printStackTrace();
@@ -366,7 +454,9 @@ public class Main {
         }
         String output = provinceCSVBuilder.toString();//.substring(0, provinceCSVBuilder.length() - 2);
         try {
-            Files.write(new File("C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\definition.csv").toPath(), output.getBytes());
+            String provinceDefinitionPath = config.getModDirectory() + "/map/definition.csv";
+            System.out.println("Writing province definition " + provinceDefinitionPath);
+            Files.write(new File(provinceDefinitionPath).toPath(), output.getBytes());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -377,20 +467,22 @@ public class Main {
         //Heightmap
         //
         {
+            String heightmapInPath = config.getSourceDirectory() + "/" + config.getHeightmapFilename();
+            String heightmapOutPath = config.getModDirectory() + "/map/heightmap.bmp";
+            System.out.println("Converting " + heightmapInPath + " -> " + heightmapOutPath);
             ProcessBuilder builder = new ProcessBuilder(
                 "java",
                 "-jar",
-                "~/Documents/hoi4ide-imagemanipulator/target/hoi4ide-imagemanipulator-1.0-SNAPSHOT-jar-with-dependencies.jar",
+                "\"" + config.getImageConverterJarPath() + "\"",
                 "-i",
-                "C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\heightmap.png",
+                "\"" + heightmapInPath + "\"",
                 "-f",
                 "8bitgrayscale",
                 "-o",
-                "C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\heightmap.bmp"
+                "\"" + heightmapOutPath + "\""
             );
-            builder.redirectErrorStream(true);
             try {
-                builder.start();
+                builder.inheritIO().start();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -406,9 +498,15 @@ public class Main {
         BufferedImage colorsImage = null;
         BufferedImage lightMapImage = null;
         try {
-            colorsImage = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\colors.png"));
-            lightMapImage = ImageIO.read(new File("C:\\Users\\satellite\\p\\overhaul1\\lightmap.png"));
+            File colorsFile = new File(config.getSourceDirectory() + "/" + config.getTerrainColorsFilename());
+            System.out.println("Reading colors file " + colorsFile);
+            colorsImage = ImageIO.read(colorsFile);
+
+            File lightmapFile = new File(config.getSourceDirectory() + "/" + config.getTerrainLightmapFilename());
+            System.out.println("Reading lightmap file " + lightmapFile);
+            lightMapImage = ImageIO.read(lightmapFile);
         } catch (IOException e){
+            System.err.println("Failed to read file");
             e.printStackTrace();
         }
         if(colorsImage != null & lightMapImage != null){
@@ -426,22 +524,28 @@ public class Main {
             }
             //write color map
             try {
-                ImageIO.write(colorsImage, "png", Files.newOutputStream(new File("C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\terrain\\colors.png").toPath()));
+                String colorsInFilePath = config.getModDirectory() + "/map/terrain/" + config.getTerrainColorsFilename();
+                String colorsOutFilepath = config.getModDirectory() + "/map/terrain/colormap_rgb_cityemissivemask_a.dds";
+
+                System.out.println("Writing " + colorsInFilePath);
+                ImageIO.write(colorsImage, "png", Files.newOutputStream(new File(colorsInFilePath).toPath()));
+
+                System.out.println("Converting " + colorsInFilePath + " -> " + colorsOutFilepath);
                 //convert to 32bitargb in converter helper
                 ProcessBuilder builder = new ProcessBuilder(
                     "java",
                     "-jar",
-                    "~/Documents/hoi4/hoi4ide-imagemanipulator/target/hoi4ide-imagemanipulator-1.0-SNAPSHOT-jar-with-dependencies.jar",
+                    "\"" + config.getImageConverterJarPath() + "\"",
                     "-i",
-                    "C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\terrain\\colors.png",
+                    "\"" + colorsInFilePath + "\"",
                     "-f",
                     "32bitargb",
                     "-o",
-                    "C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\terrain\\colormap_rgb_cityemissivemask_a.dds"
+                    "\"" + colorsOutFilepath + "\""
                 );
-                builder.redirectErrorStream(true);
-                builder.start();
+                builder.inheritIO().start();
             } catch (IOException e) {
+                System.err.println("Failed to write terrain colors");
                 e.printStackTrace();
             }
         }
@@ -476,22 +580,29 @@ public class Main {
             }
             //write color map
             try {
-                ImageIO.write(oceanColorMap, "png", Files.newOutputStream(new File("C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\terrain\\ocean_colors.png").toPath()));
+                String oceanColorsInFilepath = config.getModDirectory() + "/map/terrain/" + config.getOceanColorsFilename();
+                String oceanColorsOutFilepath = config.getModDirectory() + "/map/terrain/colormap_water_0.dds";
+
+                System.out.println("Writing " + oceanColorsInFilepath);
+                ImageIO.write(oceanColorMap, "png", Files.newOutputStream(new File(oceanColorsInFilepath).toPath()));
+
+                System.out.println("Converting " + oceanColorsInFilepath + " -> " + oceanColorsOutFilepath);
                 //convert to 32bitargb in converter helper
                 ProcessBuilder builder = new ProcessBuilder(
                     "java",
                     "-jar",
-                    "~/Documents/hoi4/hoi4ide-imagemanipulator/target/hoi4ide-imagemanipulator-1.0-SNAPSHOT-jar-with-dependencies.jar",
+                    "\"" + config.getImageConverterJarPath() + "\"",
                     "-i",
-                    "C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\terrain\\ocean_colors.png",
+                    "\"" + oceanColorsInFilepath + "\"",
                     "-f",
                     "32bitargb",
                     "-o",
-                    "C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\map\\terrain\\colormap_water_0.dds"
+                    "\"" + oceanColorsOutFilepath + "\""
                 );
                 builder.redirectErrorStream(true);
                 builder.start();
             } catch (IOException e) {
+                System.err.println("Failed to write ocean colors");
                 e.printStackTrace();
             }
         }
@@ -699,7 +810,7 @@ public class Main {
                 builder.append("}");
                 //write to file
                 try {
-                    Files.write(new File("C:\\Users\\satellite\\Documents\\Paradox Interactive\\Hearts of Iron IV\\mod\\overhaul1\\history\\states\\STATE_" + stateId + ".txt").toPath(), builder.toString().getBytes());
+                    Files.write(new File(config.getModDirectory() + "/history/states/STATE_" + stateId + ".txt").toPath(), builder.toString().getBytes());
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
