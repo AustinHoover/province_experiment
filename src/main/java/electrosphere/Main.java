@@ -793,6 +793,9 @@ public class Main {
                 builder.append("    provinces={\n");
                 builder.append("    " + provinces + "\n");
                 builder.append("    }\n");
+                builder.append("    history={\n");
+                builder.append("        owner = AFG\n");
+                builder.append("    }\n");
                 builder.append("    resources={" + resources + "}\n");
                 builder.append("    local_supplies=" + localSupplies + "\n");
                 builder.append("}");
@@ -901,6 +904,16 @@ public class Main {
                 String stratRegionFilepath = config.getModDirectory() + "/map/strategicregions/0-STRAT_REGION_LAND.txt";
                 System.out.println("Writing strategic region! " + stratRegionFilepath);
                 Files.writeString(new File(stratRegionFilepath).toPath(),builder.toString());
+            } catch (IOException ex){
+                ex.printStackTrace();
+            }
+
+            //try writing weather positions
+            try {
+                String content = "1;2781.24;9.90;1571.49;small";
+                String weatherPositionsFilepath = config.getModDirectory() + "/map/weatherpositions.txt";
+                System.out.println("Writing weather positions! " + weatherPositionsFilepath);
+                Files.writeString(new File(weatherPositionsFilepath).toPath(),content);
             } catch (IOException ex){
                 ex.printStackTrace();
             }
