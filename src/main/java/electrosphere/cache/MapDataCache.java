@@ -42,6 +42,21 @@ public class MapDataCache {
      */
     List<Province> provinceList;
 
+    /**
+     * Map of province id -> color
+     */
+    Map<Integer, Integer> provinceIdColorMap;
+
+    /**
+     * Width of the map
+     */
+    int mapWidth;
+
+    /**
+     * Height of the map
+     */
+    int mapHeight;
+
     public List<Point> getProvinceCenterList() {
         return provinceCenterList;
     }
@@ -88,6 +103,30 @@ public class MapDataCache {
 
     public void setProvinceList(List<Province> provinceList) {
         this.provinceList = provinceList;
+    }
+
+    public int getMapWidth() {
+        return mapWidth;
+    }
+
+    public void setMapWidth(int mapWidth) {
+        this.mapWidth = mapWidth;
+    }
+
+    public int getMapHeight() {
+        return mapHeight;
+    }
+
+    public void setMapHeight(int mapHeight) {
+        this.mapHeight = mapHeight;
+    }
+
+    public Map<Integer, Integer> getProvinceIdColorMap() {
+        return provinceIdColorMap;
+    }
+
+    public void setProvinceIdColorMap(Map<Integer, Integer> provinceIdColorMap) {
+        this.provinceIdColorMap = provinceIdColorMap;
     }
 
     

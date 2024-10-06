@@ -52,7 +52,7 @@ public class Main {
 
     static Random colorRandom = new Random();
     static Map<String, Boolean> colorUseMap = new HashMap<String, Boolean>();
-    static Map<Integer, Color> provinceIdColorMap = new HashMap<Integer, Color>();
+    static Map<Integer, Integer> provinceIdColorMap = new HashMap<Integer, Integer>();
 
     //the continents that were discovered
     static List<Integer> continentsDiscovered = new LinkedList<Integer>();
@@ -125,6 +125,14 @@ public class Main {
                 e.printStackTrace();
                 System.exit(1);
             }
+            targetSubfolder = config.getModDirectory() + "/map/strategicregions";
+            try {
+                Files.createDirectories(new File(targetSubfolder).toPath());
+            } catch (IOException e) {
+                System.err.println("Failed to create required directories in mod folder " + targetSubfolder);
+                e.printStackTrace();
+                System.exit(1);
+            }
         }
 
         //read map data cache
@@ -154,163 +162,188 @@ public class Main {
         BufferedImage rawTerrainImg = null; // the mask for ocean
         BufferedImage continentsImage = null; // the mask for each continents
 
-        if(mapDataCache == null){
+        if(shouldRunProvinceParsing(config, mapDataCache)){
             try {
-                String provincesImageFilepath = config.getSourceDirectory() + "/" + config.getProvincePointsFilename();
-                System.out.println("Reading provinces points image file " + provincesImageFilepath);
-                provinceImg = ImageIO.read(new File(provincesImageFilepath));
-                width = provinceImg.getWidth();
-                height = provinceImg.getHeight();
-                horizontalThird = provinceImg.getWidth() / 3;
-                verticalThird = provinceImg.getHeight() / 3;
-                for(int x = 0; x < provinceImg.getWidth(); x++){
-                    for(int y = 0; y < provinceImg.getHeight(); y++){
-                        int rgb = provinceImg.getRGB(x, y);
-                        int blue = rgb & 0xff;
-                        int green = (rgb & 0xff00) >> 8;
-                        int red = (rgb & 0xff0000) >> 16;
-                        if(red + blue + green > 400){
-                            Point newPoint = new Point(x,y);
-                            boolean shouldAdd = true;
-                            for(Point extantPoint: provinceCenterList){
-                                if(extantPoint.distance(newPoint) < 3){
-                                    shouldAdd = false;
-                                    break;
+                if(mapDataCache == null || mapDataCache.getProvinceCenterList() == null || mapDataCache.getProvinceCenterListMap() == null || mapDataCache.getProvinceIdColorMap() == null){
+                    String provincesImageFilepath = config.getSourceDirectory() + "/" + config.getProvincePointsFilename();
+                    System.out.println("Reading provinces points image file " + provincesImageFilepath);
+                    provinceImg = ImageIO.read(new File(provincesImageFilepath));
+                    width = provinceImg.getWidth();
+                    height = provinceImg.getHeight();
+                    horizontalThird = provinceImg.getWidth() / 3;
+                    verticalThird = provinceImg.getHeight() / 3;
+                    for(int x = 0; x < provinceImg.getWidth(); x++){
+                        for(int y = 0; y < provinceImg.getHeight(); y++){
+                            int rgb = provinceImg.getRGB(x, y);
+                            int blue = rgb & 0xff;
+                            int green = (rgb & 0xff00) >> 8;
+                            int red = (rgb & 0xff0000) >> 16;
+                            if(red + blue + green > 400){
+                                Point newPoint = new Point(x,y);
+                                boolean shouldAdd = true;
+                                for(Point extantPoint: provinceCenterList){
+                                    if(extantPoint.distance(newPoint) < 3){
+                                        shouldAdd = false;
+                                        break;
+                                    }
                                 }
-                            }
-                            if(shouldAdd){
-                                provinceCenterList.add(newPoint);
-                                provinceCenterListMap.get((x/horizontalThird)+""+(y/verticalThird)).add(newPoint);
-                                int[] colors = Utils.getColorFromIndex(provinceList.size(),true);
-                                provinceList.add(new Province(newPoint.x,newPoint.y,provinceList.size()+1,colors[0],colors[1],colors[2],"land",false,"unknown",0));
-                                provinceIdColorMap.put(provinceList.size(),getUnusedColor());
+                                if(shouldAdd){
+                                    provinceCenterList.add(newPoint);
+                                    provinceCenterListMap.get((x/horizontalThird)+""+(y/verticalThird)).add(newPoint);
+                                    int[] colors = Utils.getColorFromIndex(provinceList.size(),true);
+                                    provinceList.add(new Province(newPoint.x,newPoint.y,provinceList.size()+1,colors[0],colors[1],colors[2],"land",false,"unknown",0));
+                                    provinceIdColorMap.put(provinceList.size(),getUnusedColor().getRGB());
+                                }
                             }
                         }
                     }
+                    System.out.println("Discovered " + provinceCenterList.size() + " provinces!");
+                } else {
+                    System.out.println("Using cached province data");
+                    provinceCenterList = mapDataCache.getProvinceCenterList();
+                    provinceCenterListMap = mapDataCache.getProvinceCenterListMap();
+                    width = mapDataCache.getMapWidth();
+                    height = mapDataCache.getMapHeight();
+                    horizontalThird = width / 3;
+                    verticalThird = height / 3;
                 }
-                System.out.println("Discovered " + provinceCenterList.size() + " provinces!");
 
-                int incrementerForColor = 0;
-                String oceanPointsPath = config.getSourceDirectory() + "/" + config.getOceanPointsFilename();
-                System.out.println("Reading ocean points file " + oceanPointsPath);
-                oceanImg = ImageIO.read(new File(oceanPointsPath));
-                for(int x = 0; x < oceanImg.getWidth(); x++){
-                    for(int y = 0; y < oceanImg.getHeight(); y++){
-                        int rgb = oceanImg.getRGB(x, y);
-                        int blue = rgb & 0xff;
-                        int green = (rgb & 0xff00) >> 8;
-                        int red = (rgb & 0xff0000) >> 16;
-                        if(red + blue + green > 400){
-                            Point newPoint = new Point(x,y);
-                            boolean shouldAdd = true;
-                            for(Point extantPoint: oceanCenterList){
-                                if(extantPoint.distance(newPoint) < 4){
-                                    shouldAdd = false;
-                                    break;
+                if(mapDataCache == null || mapDataCache.getOceanCenterList() == null || mapDataCache.getOceanCenterListMap() == null || mapDataCache.getProvinceIdColorMap() == null){
+                    int incrementerForColor = 0;
+                    String oceanPointsPath = config.getSourceDirectory() + "/" + config.getOceanPointsFilename();
+                    System.out.println("Reading ocean points file " + oceanPointsPath);
+                    oceanImg = ImageIO.read(new File(oceanPointsPath));
+                    for(int x = 0; x < oceanImg.getWidth(); x++){
+                        for(int y = 0; y < oceanImg.getHeight(); y++){
+                            int rgb = oceanImg.getRGB(x, y);
+                            int blue = rgb & 0xff;
+                            int green = (rgb & 0xff00) >> 8;
+                            int red = (rgb & 0xff0000) >> 16;
+                            if(red + blue + green > 400){
+                                Point newPoint = new Point(x,y);
+                                boolean shouldAdd = true;
+                                for(Point extantPoint: oceanCenterList){
+                                    if(extantPoint.distance(newPoint) < 4){
+                                        shouldAdd = false;
+                                        break;
+                                    }
                                 }
-                            }
-                            if(shouldAdd){
-                                oceanCenterList.add(newPoint);
-                                oceanCenterListMap.get((x/horizontalThird)+""+(y/verticalThird)).add(newPoint);
-                                int[] colors = Utils.getColorFromIndex(incrementerForColor,false);
-                                provinceList.add(new Province(newPoint.x,newPoint.y,provinceList.size()+1,colors[0],colors[1],colors[2],"sea",false,"unknown",0));
-                                provinceIdColorMap.put(provinceList.size(),getUnusedColor());
-                                incrementerForColor++;
+                                if(shouldAdd){
+                                    oceanCenterList.add(newPoint);
+                                    oceanCenterListMap.get((x/horizontalThird)+""+(y/verticalThird)).add(newPoint);
+                                    int[] colors = Utils.getColorFromIndex(incrementerForColor,false);
+                                    provinceList.add(new Province(newPoint.x,newPoint.y,provinceList.size()+1,colors[0],colors[1],colors[2],"sea",false,"unknown",0));
+                                    provinceIdColorMap.put(provinceList.size(),getUnusedColor().getRGB());
+                                    incrementerForColor++;
+                                }
                             }
                         }
                     }
+                    System.out.println("Discovered " + oceanCenterList.size() + " ocean tiles!");
+                } else {
+                    System.out.println("Using cached ocean province data");
+                    oceanCenterList = mapDataCache.getOceanCenterList();
+                    oceanCenterListMap = mapDataCache.getOceanCenterListMap();
                 }
-                System.out.println("Discovered " + oceanCenterList.size() + " ocean tiles!");
 
                 String landOceanFilepath = config.getSourceDirectory() + "/" + config.getLandOceanFilename();
-                System.out.println("Reading land ocean file " + landOceanFilepath);
-                rawTerrainImg = ImageIO.read(new File(landOceanFilepath));
+                String provincesOutputPath = config.getModDirectory() + "/" + config.getOutProvincesFilename();
+                String highContrastOutputPath = config.getModDirectory() + "/" + config.getOutProvincesHighContrastFilename();
                 BufferedImage outImage = new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);
                 BufferedImage highContrastOutImage = new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);
-                int totalPixels = rawTerrainImg.getWidth() * rawTerrainImg.getHeight();
-                ThreadPoolExecutor executorService = (ThreadPoolExecutor) Executors.newFixedThreadPool(16);
-                for(int x = 0; x < rawTerrainImg.getWidth(); x++){
-                    for(int y = 0; y < rawTerrainImg.getHeight(); y++){
-                        PixelWorkerThread thread = new PixelWorkerThread(
-                            x,
-                            y,
-                            rawTerrainImg,
-                            outImage,
-                            highContrastOutImage,
-                            horizontalThird,
-                            verticalThird,
-                            provinceCenterList,
-                            oceanCenterList,
-                            provinceCenterListMap,
-                            oceanCenterListMap,
-                            provinceIdColorMap
-                        );
-                        executorService.submit(thread);
+                if(new File(provincesOutputPath).exists() == false || new File(highContrastOutputPath).exists() == false || mapDataCache == null || mapDataCache.getProvinceIdColorMap() == null){
+                    System.out.println("Reading land ocean file " + landOceanFilepath);
+                    rawTerrainImg = ImageIO.read(new File(landOceanFilepath));
+                    int totalPixels = rawTerrainImg.getWidth() * rawTerrainImg.getHeight();
+                    ThreadPoolExecutor executorService = (ThreadPoolExecutor) Executors.newFixedThreadPool(16);
+                    for(int x = 0; x < rawTerrainImg.getWidth(); x++){
+                        for(int y = 0; y < rawTerrainImg.getHeight(); y++){
+                            PixelWorkerThread thread = new PixelWorkerThread(
+                                x,
+                                y,
+                                rawTerrainImg,
+                                outImage,
+                                highContrastOutImage,
+                                horizontalThird,
+                                verticalThird,
+                                provinceCenterList,
+                                oceanCenterList,
+                                provinceCenterListMap,
+                                oceanCenterListMap,
+                                provinceIdColorMap
+                            );
+                            executorService.submit(thread);
+                        }
                     }
-                }
-                while(executorService.getQueue().size() > 0){
-                    System.out.print("\rProgress: " + ((float)progressIncrementer.get() / (float)totalPixels) + " (queue size: " + executorService.getQueue().size() + ")     ");
+                    while(executorService.getQueue().size() > 0){
+                        System.out.print("\rProgress: " + ((float)progressIncrementer.get() / (float)totalPixels) + " (queue size: " + executorService.getQueue().size() + ")     ");
+                        try {
+                            TimeUnit.MILLISECONDS.sleep(1000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
                     try {
-                        TimeUnit.MILLISECONDS.sleep(1000);
+                        TimeUnit.MILLISECONDS.sleep(500);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
-                }
-                try {
-                    TimeUnit.MILLISECONDS.sleep(500);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                System.out.println("\rProgress: 1.0                                             ");
-                //
-                //second phase to clean up x-crossings
-                //x-crossings are when four provinces share the same corner. We're gonna fix this by merging the upper two
-                for(int x = 0; x < width; x++){
-                    for(int y = 0; y < height; y++){
-                        //if there can be an X in the first place
-                        if(x < width - 1 && y < height - 1){
-                            int color00 = outImage.getRGB(x, y);
-                            int color10 = outImage.getRGB(x + 1, y);
-                            int color01 = outImage.getRGB(x, y + 1);
-                            int color11 = outImage.getRGB(x + 1, y + 1);
-                            if(color00 != color10 && 
-                            color00 != color01 && 
-                            color00 != color11 && 
-                            color10 != color01 &&
-                            color10 != color11 &&
-                            color01 != color11){
-                                outImage.setRGB(x+1, y, outImage.getRGB(x, y));
+                    System.out.println("\rProgress: 1.0                                             ");
+                    //
+                    //second phase to clean up x-crossings
+                    //x-crossings are when four provinces share the same corner. We're gonna fix this by merging the upper two
+                    for(int x = 0; x < width; x++){
+                        for(int y = 0; y < height; y++){
+                            //if there can be an X in the first place
+                            if(x < width - 1 && y < height - 1){
+                                int color00 = outImage.getRGB(x, y);
+                                int color10 = outImage.getRGB(x + 1, y);
+                                int color01 = outImage.getRGB(x, y + 1);
+                                int color11 = outImage.getRGB(x + 1, y + 1);
+                                if(color00 != color10 && 
+                                color00 != color01 && 
+                                color00 != color11 && 
+                                color10 != color01 &&
+                                color10 != color11 &&
+                                color01 != color11){
+                                    outImage.setRGB(x+1, y, outImage.getRGB(x, y));
+                                }
                             }
                         }
                     }
+                    //
+                    //emit image to file
+                    System.out.println("Finished!");
+                    executorService.shutdown();
+
+                    System.out.println("Writing " + provincesOutputPath);
+                    Utils.writePngNoCompression(outImage,provincesOutputPath);
+
+                    System.out.println("Writing " + highContrastOutputPath);
+                    ImageIO.write(highContrastOutImage,"png",Files.newOutputStream(new File(highContrastOutputPath).toPath()));
+                } else {
+                    System.out.println("Reading province images");
+                    System.out.println("Reading " + provincesOutputPath);
+                    outImage = ImageIO.read(new File(provincesOutputPath));
+                    System.out.println("Reading " + highContrastOutputPath);
+                    highContrastOutImage = ImageIO.read(new File(highContrastOutputPath));
                 }
-                //
-                //emit image to file
-                System.out.println("Finished!");
-                executorService.shutdown();
 
-                String provincesOutputPath = config.getModDirectory() + "/" + config.getOutProvincesFilename();
-                String highContrastOutputPath = config.getModDirectory() + "/" + config.getOutProvincesHighContrastFilename();
                 String finalProvincesPath = config.getModDirectory() + "/map/provinces.bmp";
-
-                System.out.println("Writing " + provincesOutputPath);
-                Utils.writePngNoCompression(outImage,provincesOutputPath);
-
-                System.out.println("Writing " + highContrastOutputPath);
-                ImageIO.write(highContrastOutImage,"png",Files.newOutputStream(new File(highContrastOutputPath).toPath()));
-
-                System.out.println("Converting " + provincesOutputPath + " -> " + finalProvincesPath);
-                ProcessBuilder builder = new ProcessBuilder(
-                    "java",
-                    "-jar",
-                    "\"" + config.getImageConverterJarPath() + "\"",
-                    "-i",
-                    "\"" + provincesOutputPath + "\"",
-                    "-o",
-                    "\"" + finalProvincesPath + "\""
-                );
-                builder.inheritIO().start();
-                System.out.println("Finished writing image");
+                {
+                    System.out.println("Converting " + provincesOutputPath + " -> " + finalProvincesPath);
+                    ProcessBuilder builder = new ProcessBuilder(
+                        "java",
+                        "-jar",
+                        "\"" + config.getImageConverterJarPath() + "\"",
+                        "-i",
+                        "\"" + provincesOutputPath + "\"",
+                        "-o",
+                        "\"" + finalProvincesPath + "\""
+                    );
+                    builder.inheritIO().start();
+                    System.out.println("Finished writing image");
+                }
 
 
                 //
@@ -416,6 +449,9 @@ public class Main {
             mapDataCache.setOceanCenterListMap(oceanCenterListMap);
             mapDataCache.setContinentsDiscovered(continentsDiscovered);
             mapDataCache.setProvinceList(provinceList);
+            mapDataCache.setProvinceIdColorMap(provinceIdColorMap);
+            mapDataCache.setMapWidth(width);
+            mapDataCache.setMapHeight(height);
             try {
                 System.out.println("Writing map data cache " + MAP_DATA_CACHE_DEFAULT_PATH);
                 Files.writeString(new File(MAP_DATA_CACHE_DEFAULT_PATH).toPath(),gson.toJson(mapDataCache));
@@ -430,8 +466,28 @@ public class Main {
             oceanCenterListMap = mapDataCache.getOceanCenterListMap();
             continentsDiscovered = mapDataCache.getContinentsDiscovered();
             provinceList = mapDataCache.getProvinceList();
+            provinceIdColorMap = mapDataCache.getProvinceIdColorMap();
+        }
+        
+        //get province list
+        if(mapDataCache != null && mapDataCache.getProvinceList() != null){
+            provinceList = mapDataCache.getProvinceList();
         }
 
+        //get province color map
+        if(mapDataCache != null && mapDataCache.getProvinceIdColorMap() != null){
+            provinceIdColorMap = mapDataCache.getProvinceIdColorMap();
+        }
+
+        //error check province list
+        if(
+            provinceList.size() != provinceCenterList.size() + oceanCenterList.size()
+        ){
+            throw new Error("Province list does not include correct centers! " + provinceList.size() + " " + provinceCenterList.size() + " " + oceanCenterList.size());
+        }
+        if(provinceList.size() != provinceIdColorMap.values().size()){
+            throw new Error("Province list does not contain correct colors! " + provinceList.size() + " " + provinceIdColorMap.values().size());
+        }
         //output province csv
         StringBuilder provinceCSVBuilder = new StringBuilder("0;0;0;0;land;false;unknown;0\r\n");
         for(Province province : provinceList){
@@ -790,6 +846,12 @@ public class Main {
         //optional stuff
         String resources = "steel = 10 aluminium = 10 rubber = 10 tungsten = 10 chromium = 10 oil = 10";
         float localSupplies = 10;
+        //clear existing states
+        for(File childFile : new File(config.getModDirectory() + "/history/states").listFiles()){
+            if(!childFile.isDirectory()){
+                childFile.delete();
+            }
+        }
         for(State state : states){
             if(state.isLand()){
                 String provinces = "";
@@ -822,6 +884,39 @@ public class Main {
         //
         //generate strategic regions
         //
+        {
+            StringBuilder builder = new StringBuilder("");
+            builder.append("strategic_region={\n");
+            builder.append("    id=0\n");
+            builder.append("    name=\"STRATEGICREGION_1\"\n");
+            builder.append("    provinces = {\n");
+            for(int i = 0; i < provinceList.size(); i++){
+                builder.append(i + " ");
+            }
+            builder.append("\n");
+            builder.append("    }\n");
+            builder.append("    period={\n");
+            builder.append("        between={ 0.0 30.0 }\n");
+            builder.append("        temperature={ -5.0 14.0 }\n");
+            builder.append("        no_phenomenon=0.700\n");
+            builder.append("        rain_light=0.200\n");
+            builder.append("        rain_heavy=0.080\n");
+            builder.append("        snow=0.020\n");
+            builder.append("        blizzard=0.000\n");
+            builder.append("        arctic_water=0.000\n");
+            builder.append("        mud=0.000\n");
+            builder.append("        sandstorm=0.000\n");
+            builder.append("        min_snow_level=0.000\n");
+            builder.append("    }\n");
+            builder.append("}\n");
+            try {
+                String stratRegionFilepath = config.getModDirectory() + "/map/strategicregions/0-STRAT_REGION.txt";
+                System.out.println("Writing strategic region! " + stratRegionFilepath);
+                Files.writeString(new File(stratRegionFilepath).toPath(),builder.toString());
+            } catch (IOException ex){
+                ex.printStackTrace();
+            }
+        }
 
     }
 
@@ -842,6 +937,26 @@ public class Main {
         colorUseMap.put(red + "-" + green + "-" + blue, true);
         Color rVal = new Color(red, green, blue);
         return rVal;
+    }
+
+    /**
+     * Checks if the province parsing should be running
+     * @return true if should run, false otherwise
+     */
+    static boolean shouldRunProvinceParsing(Config config, MapDataCache mapDataCache){
+        String provincesOutputPath = config.getModDirectory() + "/" + config.getOutProvincesFilename();
+            String highContrastOutputPath = config.getModDirectory() + "/" + config.getOutProvincesHighContrastFilename();
+            String finalProvincesPath = config.getModDirectory() + "/map/provinces.bmp";
+        return
+        mapDataCache == null ||
+        mapDataCache.getProvinceCenterList() == null ||
+        mapDataCache.getProvinceCenterListMap() == null ||
+        mapDataCache.getOceanCenterList() == null ||
+        mapDataCache.getOceanCenterListMap() == null ||
+        new File(provincesOutputPath).exists() == false ||
+        new File(highContrastOutputPath).exists() == false ||
+        new File(finalProvincesPath).exists() == false
+        ;
     }
 
     

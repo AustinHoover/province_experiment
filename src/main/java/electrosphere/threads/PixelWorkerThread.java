@@ -50,7 +50,7 @@ public class PixelWorkerThread implements Runnable {
     //bootleg quad trees lmao
     Map<String,List<Point>> provinceCenterListMap;
     Map<String,List<Point>> oceanCenterListMap;
-    Map<Integer, Color> provinceIdColorMap;
+    Map<Integer, Integer> provinceIdColorMap;
 
     public PixelWorkerThread(
         int x,
@@ -64,7 +64,7 @@ public class PixelWorkerThread implements Runnable {
         List<Point> oceanCenterList,
         Map<String,List<Point>> provinceCenterListMap,
         Map<String,List<Point>> oceanCenterListMap,
-        Map<Integer, Color> provinceIdColorMap
+        Map<Integer, Integer> provinceIdColorMap
     ){
         this.x = x;
         this.y = y;
@@ -99,7 +99,7 @@ public class PixelWorkerThread implements Runnable {
         }
         imageLock.acquireUninterruptibly();
         outImage.setRGB(x, y, new Color(rgbArr[0],rgbArr[1],rgbArr[2]).getRGB());
-        highContrastImage.setRGB(x,y,provinceIdColorMap.get(index+1).getRGB());
+        highContrastImage.setRGB(x,y,provinceIdColorMap.get(index+1));
         imageLock.release();
         Main.progressIncrementer.addAndGet(1);
     }
