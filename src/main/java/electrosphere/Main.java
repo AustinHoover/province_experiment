@@ -934,6 +934,21 @@ public class Main {
             }
         }
 
+        //add all building files as skeletons
+        try {
+            Files.writeString(new File(config.getModDirectory() + "/map/adjacencies.csv").toPath(),"");
+            Files.writeString(new File(config.getModDirectory() + "/map/adjacency_rules.txt").toPath(),"");
+            Files.writeString(new File(config.getModDirectory() + "/map/airports.txt").toPath(),"");
+            Files.writeString(new File(config.getModDirectory() + "/map/buildings.txt").toPath(),"");
+            Files.writeString(new File(config.getModDirectory() + "/map/railways.txt").toPath(),"");
+            Files.writeString(new File(config.getModDirectory() + "/map/rocketsites.txt").toPath(),"");
+            Files.writeString(new File(config.getModDirectory() + "/map/supply_nodes.txt").toPath(),"");
+            Files.writeString(new File(config.getModDirectory() + "/map/unitstacks.txt").toPath(),"");
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+
     }
 
 
