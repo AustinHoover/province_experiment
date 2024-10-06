@@ -69,6 +69,11 @@ public class Main {
      */
     static final String CONFIG_FILEPATH = "./provinceExperiment.json";
 
+    /**
+     * The target number of provinces per state
+     */
+    static final int TARGET_PROVINCES_PER_STATE = 6;
+
     public static void main(String[] args){
         System.out.println("it lives!");
 
@@ -739,43 +744,51 @@ public class Main {
         List<Integer> closedSet = new LinkedList<Integer>();
         //first try to construct ideal states of all neighbors where state is 6+ provinces
         for(int i = 0; i < voronoiPoints.size(); i++){
-            if(!closedSet.contains(i)){
+            if(i <= landCutoff && !closedSet.contains(i)){
                 List<Integer> adjacencies = adjacencyMap.get(i);
-                if(i < landCutoff){
-                    //it's land
-                    if(adjacencies != null){
-                        List<Integer> provinceList = new LinkedList<Integer>();
-                        provinceList.add(i + 1);
-                        for(int adjacentIndex : adjacencies){
-                            if(!closedSet.contains(adjacentIndex) && adjacentIndex < landCutoff){
-                                provinceList.add(adjacentIndex + 1);
+                if(adjacencies != null){
+                    List<Integer> provinceList = new LinkedList<Integer>();
+                    provinceList.add(i);
+                    closedSet.add(i);
+
+                    //add all neighbors of the province that was just added
+                    for(int adjacentIndex : adjacencies){
+                        if(
+                            !closedSet.contains(adjacentIndex) &&
+                            adjacentIndex <= landCutoff
+                        ){
+                            if(!closedSet.contains(adjacentIndex + 1) && provinceList.contains(adjacentIndex + 1)){
+                                throw new Error("Closed set does not contain index that was already assigned!");
                             }
+                            provinceList.add(adjacentIndex);
+                            closedSet.add(adjacentIndex);
                         }
-                        if(provinceList.size() > 5){
-                            for(int toClose : provinceList){
-                                closedSet.add(toClose - 1);
-                            }
-                            states.add(new State(provinceList, true));
-                        } else {
-                            for(int adjacentIndex : adjacencies){
-                                List<Integer> extendedNeighbors = adjacencyMap.get(adjacentIndex);
-                                if(extendedNeighbors != null && adjacentIndex < landCutoff){
-                                    for(int neighborsNeighbor : extendedNeighbors){
-                                        if(!closedSet.contains(neighborsNeighbor) && !provinceList.contains(neighborsNeighbor) && neighborsNeighbor < landCutoff && provinceList.size() < 10){
-                                            provinceList.add(neighborsNeighbor + 1);
-                                            // System.out.println("Bonus province");
+                    }
+
+                    if(provinceList.size() < TARGET_PROVINCES_PER_STATE){
+                        //have not added enough provinces yet, try adding more
+                        for(int adjacentIndex : adjacencies){
+                            List<Integer> extendedNeighbors = adjacencyMap.get(adjacentIndex);
+                            if(extendedNeighbors != null && adjacentIndex <= landCutoff){
+                                for(int neighborsNeighbor : extendedNeighbors){
+                                    if(
+                                        !closedSet.contains(neighborsNeighbor) &&
+                                        !provinceList.contains(neighborsNeighbor) &&
+                                        neighborsNeighbor <= landCutoff &&
+                                        provinceList.size() < 10
+                                    ){
+                                        if(!closedSet.contains(neighborsNeighbor + 1) && provinceList.contains(neighborsNeighbor + 1)){
+                                            throw new Error("Closed set does not contain index that was already assigned!");
                                         }
+                                        provinceList.add(neighborsNeighbor);
+                                        closedSet.add(neighborsNeighbor);
+                                        // System.out.println("Bonus province");
                                     }
                                 }
                             }
-                            if(provinceList.size() > 5){
-                                for(int toClose : provinceList){
-                                    closedSet.add(toClose - 1);
-                                }
-                                states.add(new State(provinceList, true));
-                            }
                         }
                     }
+                    states.add(new State(provinceList, true));
                 }
                 //  else {
                 //     //it's ocean
@@ -840,7 +853,7 @@ public class Main {
         }
         System.out.println("Number of states final: " + states.size());
         //emit states as state files
-        int stateId = 0;
+        int stateId = 1;
         int defaultManpower = 500000;
         String defaultCategory = "town";
         //optional stuff
@@ -887,30 +900,33 @@ public class Main {
         {
             StringBuilder builder = new StringBuilder("");
             builder.append("strategic_region={\n");
-            builder.append("    id=0\n");
+            builder.append("    id=1\n");
             builder.append("    name=\"STRATEGICREGION_1\"\n");
             builder.append("    provinces = {\n");
-            for(int i = 0; i < provinceList.size(); i++){
+            builder.append("        ");
+            for(int i = 0; i <= provinceList.size(); i++){
                 builder.append(i + " ");
             }
             builder.append("\n");
             builder.append("    }\n");
-            builder.append("    period={\n");
-            builder.append("        between={ 0.0 30.0 }\n");
-            builder.append("        temperature={ -5.0 14.0 }\n");
-            builder.append("        no_phenomenon=0.700\n");
-            builder.append("        rain_light=0.200\n");
-            builder.append("        rain_heavy=0.080\n");
-            builder.append("        snow=0.020\n");
-            builder.append("        blizzard=0.000\n");
-            builder.append("        arctic_water=0.000\n");
-            builder.append("        mud=0.000\n");
-            builder.append("        sandstorm=0.000\n");
-            builder.append("        min_snow_level=0.000\n");
+            builder.append("    weather={\n");
+            builder.append("        period={\n");
+            builder.append("            between={ 0.0 30.0 }\n");
+            builder.append("            temperature={ -5.0 14.0 }\n");
+            builder.append("            no_phenomenon=0.700\n");
+            builder.append("            rain_light=0.200\n");
+            builder.append("            rain_heavy=0.080\n");
+            builder.append("            snow=0.020\n");
+            builder.append("            blizzard=0.000\n");
+            builder.append("            arctic_water=0.000\n");
+            builder.append("            mud=0.000\n");
+            builder.append("            sandstorm=0.000\n");
+            builder.append("            min_snow_level=0.000\n");
+            builder.append("        }\n");
             builder.append("    }\n");
             builder.append("}\n");
             try {
-                String stratRegionFilepath = config.getModDirectory() + "/map/strategicregions/0-STRAT_REGION.txt";
+                String stratRegionFilepath = config.getModDirectory() + "/map/strategicregions/0-STRAT_REGION_LAND.txt";
                 System.out.println("Writing strategic region! " + stratRegionFilepath);
                 Files.writeString(new File(stratRegionFilepath).toPath(),builder.toString());
             } catch (IOException ex){
