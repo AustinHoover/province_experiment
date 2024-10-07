@@ -3,7 +3,6 @@ package electrosphere.state;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import electrosphere.building.Building;
 import electrosphere.building.BuildingType;
