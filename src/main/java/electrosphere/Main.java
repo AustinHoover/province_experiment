@@ -24,12 +24,12 @@ import de.alsclo.voronoi.Voronoi;
 import de.alsclo.voronoi.graph.Edge;
 import de.alsclo.voronoi.graph.Graph;
 import electrosphere.bmp.BMPWriter;
+import electrosphere.building.Building;
 import electrosphere.cache.MapDataCache;
 import electrosphere.config.Config;
 import electrosphere.province.Province;
 import electrosphere.province.TerrainMap;
 import electrosphere.province.TerrainType;
-import electrosphere.state.Building;
 import electrosphere.state.State;
 import electrosphere.threads.PixelWorkerThread;
 import electrosphere.util.Point;
@@ -446,6 +446,14 @@ public class Main {
                 e.printStackTrace();
             }
 
+            //set width/height if they haven't already been
+            if(width == 0 && mapDataCache != null){
+                width = mapDataCache.getMapWidth();
+            }
+            if(height == 0 && mapDataCache != null){
+                height = mapDataCache.getMapHeight();
+            }
+
             //write map data cache now that we have parsed once
             System.out.println("Writing map data cache");
             mapDataCache = new MapDataCache();
@@ -473,6 +481,8 @@ public class Main {
             continentsDiscovered = mapDataCache.getContinentsDiscovered();
             provinceList = mapDataCache.getProvinceList();
             provinceIdColorMap = mapDataCache.getProvinceIdColorMap();
+            width = mapDataCache.getMapWidth();
+            height = mapDataCache.getMapHeight();
         }
         
         //get province list
@@ -943,9 +953,9 @@ public class Main {
                     buildingCSVBuilder.append(";");
                     buildingCSVBuilder.append(building.getLocation().getX());
                     buildingCSVBuilder.append(";");
-                    buildingCSVBuilder.append(building.getLocation().getY());
-                    buildingCSVBuilder.append(";");
                     buildingCSVBuilder.append(buildingHeight);
+                    buildingCSVBuilder.append(";");
+                    buildingCSVBuilder.append(height - building.getLocation().getY());
                     buildingCSVBuilder.append(";");
                     buildingCSVBuilder.append(buildingRotation);
                     buildingCSVBuilder.append(";");
@@ -964,11 +974,62 @@ public class Main {
             }
         }
 
+        //
+        //Emit air bases
+        //
+        {
+            StringBuilder airbaseBuilder = new StringBuilder("");
+            for(State state : states){
+                for(Building building : state.getBuildings()){
+                    if(building.getType().contentEquals("air_base")){
+                        airbaseBuilder.append(state.getId());
+                        airbaseBuilder.append("=");
+                        airbaseBuilder.append("{" + building.getProvinceId() + "}");
+                        airbaseBuilder.append("\r\n");
+                    }
+                }
+            }
+            output = airbaseBuilder.toString();
+            try {
+                String buildingsFilePath = config.getModDirectory() + "/map/airports.txt";
+                System.out.println("Writing airports file " + buildingsFilePath);
+                Files.writeString(new File(buildingsFilePath).toPath(),output);
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }
+
+        //
+        //Emit rocket sites
+        //
+        {
+            StringBuilder airbaseBuilder = new StringBuilder("");
+            for(State state : states){
+                for(Building building : state.getBuildings()){
+                    if(building.getType().contentEquals("rocket_site")){
+                        airbaseBuilder.append(state.getId());
+                        airbaseBuilder.append("=");
+                        airbaseBuilder.append("{" + building.getProvinceId() + "}");
+                        airbaseBuilder.append("\r\n");
+                    }
+                }
+            }
+            output = airbaseBuilder.toString();
+            try {
+                String buildingsFilePath = config.getModDirectory() + "/map/rocketsites.txt";
+                System.out.println("Writing rocketsites file " + buildingsFilePath);
+                Files.writeString(new File(buildingsFilePath).toPath(),output);
+            } catch (IOException e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        }
+
         //add all building files as skeletons
         try {
             Files.writeString(new File(config.getModDirectory() + "/map/adjacencies.csv").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/adjacency_rules.txt").toPath(),"");
-            Files.writeString(new File(config.getModDirectory() + "/map/airports.txt").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/railways.txt").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/rocketsites.txt").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/supply_nodes.txt").toPath(),"");

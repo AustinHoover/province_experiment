@@ -3,7 +3,10 @@ package electrosphere.state;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import electrosphere.building.Building;
+import electrosphere.building.BuildingType;
 import electrosphere.province.Province;
 import electrosphere.util.Point;
 
@@ -50,10 +53,90 @@ public class State {
      * @param idProvinceMap The map of province id -> province
      */
     public void generateBuildings(List<Province> provinces, Map<Integer,Province> idProvinceMap){
-        Province firstProvince = idProvinceMap.get(provinces.get(0).getId());
-        buildings.add(new Building(new Point(firstProvince.getX(),firstProvince.getY()), "arms_factory"));
-        buildings.add(new Building(new Point(firstProvince.getX(),firstProvince.getY()), "industrial_complex"));
-        buildings.add(new Building(new Point(firstProvince.getX(),firstProvince.getY()), "anti_air_building"));
+        List<BuildingType> buildingTypes = BuildingType.getDefaultTypes();
+        for(BuildingType buildingType : buildingTypes){
+            if(buildingType.isProvincial()){
+                for(int provinceId : this.provinces){
+                    Province province = idProvinceMap.get(provinceId);
+                    if(buildingType.isOnlyCoastal()){
+                        if(!province.getCoastalStatus()){
+                            continue;
+                        }
+                        buildings.add(new Building(province.getId(), new Point(province.getX(), province.getY()), buildingType.getName()));
+                    } else {
+                        buildings.add(new Building(province.getId(), new Point(province.getX(), province.getY()), buildingType.getName()));
+                    }
+                }
+            } else {
+                int placed = 0;
+                while(placed < buildingType.getShowOnMap()){
+                    for(int provinceId : this.provinces){
+                        if(placed >= buildingType.getShowOnMap()){
+                            break;
+                        }
+                        Province province = idProvinceMap.get(provinceId);
+                        if(buildingType.isOnlyCoastal()){
+                            if(!province.getCoastalStatus()){
+                                continue;
+                            }
+                            buildings.add(new Building(province.getId(), new Point(province.getX(), province.getY()), buildingType.getName()));
+                            placed++;
+                            //delete already existing supply nodes -- TODO: make more generic
+                            // if(buildingType.isSupplyNode()){
+                            //     this.buildings = buildings.stream().filter(building -> !building.getType().contentEquals("supply_node") || building.getProvinceId() != provinceId).collect(Collectors.toList());
+                            // }
+                        } else {
+                            buildings.add(new Building(province.getId(), new Point(province.getX(), province.getY()), buildingType.getName()));
+                            placed++;
+                        }
+                    }
+                    if(placed == 0){
+                        break;
+                    }
+                }
+            }
+        }
+        // boolean placedDockyard = false;
+        // boolean placedStatewide = false;
+        // for(int provinceId : this.provinces){
+        //     Province province = idProvinceMap.get(provinceId);
+        //     if(placedStatewide == false){
+        //         placedStatewide = true;
+        //         buildings.add(new Building(province.getId(),new Point(province.getX(),province.getY()), "synthetic_refinery"));
+        //         buildings.add(new Building(province.getId(),new Point(province.getX(),province.getY()), "fuel_silo"));
+        //         buildings.add(new Building(province.getId(),new Point(province.getX(),province.getY()), "radar_station"));
+        //         buildings.add(new Building(province.getId(),new Point(province.getX(),province.getY()), "rocket_site"));
+        //         buildings.add(new Building(province.getId(),new Point(province.getX(),province.getY()), "nuclear_reactor"));
+        //         buildings.add(new Building(province.getId(),new Point(province.getX(),province.getY()), "air_base"));
+        //         buildings.add(new Building(province.getId(),new Point(province.getX(),province.getY()), "anti_air_building"));
+        //     }
+        //     buildings.add(new Building(province.getId(),new Point(province.getX(),province.getY()), "arms_factory"));
+        //     buildings.add(new Building(province.getId(),new Point(province.getX(),province.getY()), "industrial_complex"));
+        //     buildings.add(new Building(province.getId(),new Point(province.getX(), province.getY()),"bunker"));
+        //     if(province.getCoastalStatus()){
+        //         //get adjacent naval province
+        //         Province seaProvince = null;
+        //         for(int neighborId : province.getNeighbors()){
+        //             if(!idProvinceMap.get(neighborId).getType().contentEquals("land")){
+        //                 seaProvince = idProvinceMap.get(neighborId);
+        //                 break;
+        //             }
+        //         }
+        //         if(placedDockyard == false){
+        //             placedDockyard = true;
+        //             buildings.add(new Building(province.getId(),new Point(province.getX(), province.getY()),"dockyard"));
+        //         }
+        //         Building floatingHarbor = new Building(province.getId(),new Point(province.getX(), province.getY()),"floating_harbor");
+        //         floatingHarbor.setAdjacentNavalProvince(seaProvince.getId());
+        //         buildings.add(floatingHarbor);
+        //         Building navalBase = new Building(province.getId(),new Point(province.getX(), province.getY()),"naval_base");
+        //         navalBase.setAdjacentNavalProvince(seaProvince.getId());
+        //         buildings.add(navalBase);
+        //         buildings.add(new Building(province.getId(),new Point(province.getX(), province.getY()),"coastal_bunker"));
+        //     } else {
+        //         buildings.add(new Building(province.getId(),new Point(province.getX(), province.getY()),"supply_node"));
+        //     }
+        // }
     }
 
     /**
