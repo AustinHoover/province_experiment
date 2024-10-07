@@ -1,6 +1,6 @@
 {
-    "sourceDirectory": "C:/Users/satellite/p/hoi4/project1/map",
-    "modDirectory": "C:/Users/satellite/Documents/Paradox Interactive/Hearts of Iron IV/mod/project1",
+    "sourceDirectory": "C:/Users/satellite/Documents/hoi4/project1/mapdev",
+    "modDirectory": "C:/Users/satellite/Documents/hoi4/project1",
     "imageConverterJarPath": "C:/Users/satellite/p/imgformatconverter/target/imgformatconverter-1.0-SNAPSHOT-jar-with-dependencies.jar",
     "provincePointsFilename": "province_points.png",
     "oceanPointsFilename": "ocean_points.png",

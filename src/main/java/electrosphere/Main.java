@@ -253,8 +253,8 @@ public class Main {
                 }
 
                 String landOceanFilepath = config.getSourceDirectory() + "/" + config.getLandOceanFilename();
-                String provincesOutputPath = config.getModDirectory() + "/" + config.getOutProvincesFilename();
-                String highContrastOutputPath = config.getModDirectory() + "/" + config.getOutProvincesHighContrastFilename();
+                String provincesOutputPath = config.getModDirectory() + "/map/" + config.getOutProvincesFilename();
+                String highContrastOutputPath = config.getModDirectory() + "/map/" + config.getOutProvincesHighContrastFilename();
                 BufferedImage outImage = new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);
                 BufferedImage highContrastOutImage = new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);
                 if(new File(provincesOutputPath).exists() == false || new File(highContrastOutputPath).exists() == false || mapDataCache == null || mapDataCache.getProvinceIdColorMap() == null){
@@ -1031,7 +1031,6 @@ public class Main {
             Files.writeString(new File(config.getModDirectory() + "/map/adjacencies.csv").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/adjacency_rules.txt").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/railways.txt").toPath(),"");
-            Files.writeString(new File(config.getModDirectory() + "/map/rocketsites.txt").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/supply_nodes.txt").toPath(),"");
             Files.writeString(new File(config.getModDirectory() + "/map/unitstacks.txt").toPath(),"");
         } catch (IOException e) {
@@ -1065,8 +1064,8 @@ public class Main {
      * @return true if should run, false otherwise
      */
     static boolean shouldRunProvinceParsing(Config config, MapDataCache mapDataCache){
-        String provincesOutputPath = config.getModDirectory() + "/" + config.getOutProvincesFilename();
-            String highContrastOutputPath = config.getModDirectory() + "/" + config.getOutProvincesHighContrastFilename();
+        String provincesOutputPath = config.getModDirectory() + "/map/" + config.getOutProvincesFilename();
+            String highContrastOutputPath = config.getModDirectory() + "/map/" + config.getOutProvincesHighContrastFilename();
             String finalProvincesPath = config.getModDirectory() + "/map/provinces.bmp";
         return
         mapDataCache == null ||
